@@ -7,15 +7,19 @@ import {
 import '@git-diff-view/react/styles/diff-view-pure.css'
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent,
 } from 'react'
 
-import type { DiffFile } from '../api/types'
+import type { DiffFile, Discussion } from '../api/types'
+import { CommentComposer } from './CommentComposer'
 import { toDiffData } from './diffAdapter'
+import { DiscussionThread } from './DiscussionThread'
 import {
   extendSelection,
+  toBackendSelection,
   type DiffSide,
   type LinePoint,
   type SelectionRange,
@@ -29,6 +33,7 @@ interface DiffViewerRef {
 
 export interface DiffViewerProps {
   file: DiffFile
+  discussions?: Discussion[]
   onSelectionChange?: (selection: SelectionRange | null) => void
 }
 
@@ -39,17 +44,41 @@ function preferredTheme(): 'light' | 'dark' {
     : 'dark'
 }
 
-function selectionLine(point: LinePoint): number {
-  return (
-    (point.side === 'new' ? point.newLine : point.oldLine) ??
-    point.newLine ??
-    point.oldLine ??
-    0
-  )
+function discussionPosition(discussion: Discussion) {
+  return discussion.notes.find((note) => note.position)?.position ?? null
+}
+
+function groupDiscussions(file: DiffFile, discussions: Discussion[]) {
+  const oldFile: Record<string, { data: Discussion[] }> = {}
+  const newFile: Record<string, { data: Discussion[] }> = {}
+  const general: Discussion[] = []
+
+  for (const discussion of discussions) {
+    const position = discussionPosition(discussion)
+    if (!position) {
+      general.push(discussion)
+      continue
+    }
+    const belongsToFile =
+      position.new_path === file.new_path ||
+      position.old_path === file.old_path
+    if (!belongsToFile) continue
+
+    const side = position.new_line != null ? newFile : oldFile
+    const lineNumber = position.new_line ?? position.old_line
+    if (lineNumber == null) continue
+    const key = String(lineNumber)
+    side[key] = {
+      data: [...(side[key]?.data ?? []), discussion],
+    }
+  }
+
+  return { extendData: { oldFile, newFile }, general }
 }
 
 export function DiffViewer({
   file,
+  discussions = [],
   onSelectionChange,
 }: DiffViewerProps) {
   const [mode, setMode] = useState<'unified' | 'split'>(() =>
@@ -60,6 +89,10 @@ export function DiffViewer({
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const shiftPressed = useRef(false)
   const diffViewRef = useRef<DiffViewerRef>(null)
+  const { extendData, general } = useMemo(
+    () => groupDiscussions(file, discussions),
+    [discussions, file],
+  )
 
   useEffect(() => {
     setSelection(null)
@@ -90,6 +123,7 @@ export function DiffViewer({
 
   function chooseMode(nextMode: 'unified' | 'split') {
     localStorage.setItem(MODE_KEY, nextMode)
+    setSelection(null)
     setMode(nextMode)
   }
 
@@ -125,6 +159,23 @@ export function DiffViewer({
     shiftPressed.current = event.shiftKey
   }
 
+  function focusPostedDiscussion(
+    discussion: Discussion,
+    closeWidget: () => void,
+  ) {
+    setSelection(null)
+    closeWidget()
+    requestAnimationFrame(() => {
+      const thread = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-discussion-id]'),
+      ).find(
+        (element) =>
+          element.dataset.discussionId === discussion.id,
+      )
+      thread?.focus()
+    })
+  }
+
   if (file.too_large || file.collapsed) {
     return (
       <section className="diff-stage unavailable-diff">
@@ -143,9 +194,6 @@ export function DiffViewer({
       </section>
     )
   }
-
-  const startLine = selection ? selectionLine(selection.start) : null
-  const endLine = selection ? selectionLine(selection.end) : null
 
   return (
     <section className="diff-stage" aria-label={file.new_path}>
@@ -174,6 +222,23 @@ export function DiffViewer({
         </div>
       </header>
 
+      {general.length > 0 ? (
+        <section className="general-discussions" aria-label="General discussions">
+          <div className="general-heading">
+            <span className="eyebrow">General placement</span>
+            <strong>
+              {general.length} {general.length === 1 ? 'discussion' : 'discussions'}
+            </strong>
+          </div>
+          {general.map((discussion) => (
+            <DiscussionThread
+              discussion={discussion}
+              key={discussion.id}
+            />
+          ))}
+        </section>
+      ) : null}
+
       <div
         className="diff-library"
         onClickCapture={rememberModifier}
@@ -190,27 +255,34 @@ export function DiffViewer({
           diffViewHighlight={highlight}
           diffViewAddWidget
           diffViewFontSize={12}
+          extendData={extendData}
           onAddWidgetClick={selectLine}
-          renderWidgetLine={() => null}
+          renderWidgetLine={({ onClose }) =>
+            selection ? (
+              <CommentComposer
+                selection={toBackendSelection(file, selection)}
+                onCancel={() => {
+                  setSelection(null)
+                  onClose()
+                }}
+                onPosted={(discussion) =>
+                  focusPostedDiscussion(discussion, onClose)
+                }
+              />
+            ) : null
+          }
+          renderExtendLine={({ data }) => (
+            <div className="line-discussions">
+              {data.map((discussion) => (
+                <DiscussionThread
+                  discussion={discussion}
+                  key={discussion.id}
+                />
+              ))}
+            </div>
+          )}
         />
       </div>
-
-      {selection && startLine !== null && endLine !== null ? (
-        <div className="selection-draft" role="status">
-          <span className="selection-pin" aria-hidden="true">
-            +
-          </span>
-          <strong>
-            {startLine === endLine
-              ? `Selected line ${startLine}`
-              : `Selected lines ${startLine}–${endLine}`}
-          </strong>
-          <span>Comment composer ready</span>
-          <button type="button" onClick={() => setSelection(null)}>
-            Clear
-          </button>
-        </div>
-      ) : null}
     </section>
   )
 }

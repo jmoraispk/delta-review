@@ -24,17 +24,34 @@ export interface DiffFile {
   too_large: boolean
 }
 
+export interface NotePosition {
+  old_path?: string
+  new_path?: string
+  old_line?: number | null
+  new_line?: number | null
+}
+
+export interface DiscussionNote {
+  id: number | string
+  body: string
+  author?: {
+    name: string
+    username: string
+    avatar_url?: string
+  }
+  created_at?: string
+  position?: NotePosition | null
+  resolvable?: boolean
+  resolved?: boolean
+}
+
 export interface Discussion {
   id: string
-  notes: Array<{
-    id?: number
-    body?: string
-    position?: {
-      old_path?: string
-      new_path?: string
-      old_line?: number | null
-      new_line?: number | null
-    } | null
-    resolved?: boolean
-  }>
+  individual_note?: boolean
+  notes: DiscussionNote[]
+}
+
+export interface PostingResult {
+  placement: 'inline' | 'general'
+  discussion: Discussion
 }

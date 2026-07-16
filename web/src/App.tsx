@@ -138,7 +138,10 @@ export function App() {
                 </section>
               }
             >
-              <DiffViewer file={activeFile} />
+              <DiffViewer
+                file={activeFile}
+                discussions={discussions.data ?? []}
+              />
             </Suspense>
           ) : (
             <section className="empty-review">
