@@ -63,7 +63,7 @@ test("points the comment at the caret without covering its line", () => {
 
   assert.match(svg, /<rect class="caret" x="900" y="190"/);
   assert.match(svg, /<polygon points="892,218 908,218 900,204"/);
-  assert.match(svg, /<rect x="842" y="218" width="358" height="50"/);
+  assert.match(svg, /<rect x="842" y="218" width="270" height="50"/);
 });
 
 test("reduced motion shows only the static comment state", () => {

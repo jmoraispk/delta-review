@@ -125,7 +125,7 @@ ${grid}
   <!-- inline comment bubble -->
   <g class="bubble">
     <polygon points="892,218 908,218 900,204" fill="#1C2431"/>
-    <rect x="842" y="218" width="358" height="50" rx="10" fill="#1C2431" stroke="#2DD4BF" stroke-opacity="0.55"/>
+    <rect x="842" y="218" width="270" height="50" rx="10" fill="#1C2431" stroke="#2DD4BF" stroke-opacity="0.55"/>
     <circle cx="864" cy="237" r="8" fill="url(#delta)"/>
     <text x="880" y="242" font-size="13" font-weight="700" fill="#E6EDF3">you<tspan fill="#6E7681" font-weight="400">  &#183;  now</tspan></text>
     <text x="854" y="261" class="mono" font-size="13" fill="#9DA7B3">type the return as string[]?</text>
