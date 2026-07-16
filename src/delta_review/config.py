@@ -98,15 +98,15 @@ def resolve_target(
         payload = json.loads(_run(["glab", "mr", "view", "--output", "json"], cwd))
         mr_iid = int(payload["iid"])
 
-    api_host = _run(
-        ["glab", "config", "get", "api_host", "--host", final_host], cwd
-    )
-    api_protocol = _run(
-        ["glab", "config", "get", "api_protocol", "--host", final_host], cwd
-    )
-    if url_api_base and not api_host and not api_protocol:
+    if url_api_base:
         api_base = url_api_base
     else:
+        api_host = _run(
+            ["glab", "config", "get", "api_host", "--host", final_host], cwd
+        )
+        api_protocol = _run(
+            ["glab", "config", "get", "api_protocol", "--host", final_host], cwd
+        )
         api_base = f"{api_protocol or 'https'}://{api_host or final_host}/api/v4"
     return Target(
         host=final_host,

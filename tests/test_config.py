@@ -83,7 +83,10 @@ def test_explicit_values_override_mr_url(
 def test_mr_url_preserves_scheme_and_nonstandard_port(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(config, "_run", lambda command, cwd: "")
+    def fake_run(command: list[str], cwd: Path) -> str:
+        return "https" if "api_protocol" in command else "gitlab.example.com"
+
+    monkeypatch.setattr(config, "_run", fake_run)
     target = config.resolve_target(
         mr_url=(
             "http://gitlab.example.com:8443/group/project/-/merge_requests/7"
