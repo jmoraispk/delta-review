@@ -86,3 +86,48 @@ class DiscussionService:
             "inline" if note_position is not None else "general"
         )
         return PostingResult(placement, discussion)
+
+    async def get_discussions(
+        self, project: str, mr_iid: int
+    ) -> list[dict[str, Any]]:
+        path = self._merge_request_path(project, mr_iid)
+        return [
+            discussion
+            async for discussion in self._client.paginate(
+                f"{path}/discussions"
+            )
+        ]
+
+    async def reply(
+        self,
+        project: str,
+        mr_iid: int,
+        discussion_id: str,
+        body: str,
+    ) -> dict[str, Any]:
+        if not discussion_id.strip():
+            raise ValueError("discussion_id must not be empty")
+        path = self._merge_request_path(project, mr_iid)
+        encoded_id = quote(discussion_id, safe="")
+        return await self._client.request(
+            "POST",
+            f"{path}/discussions/{encoded_id}/notes",
+            json={"body": body},
+        )
+
+    async def set_resolved(
+        self,
+        project: str,
+        mr_iid: int,
+        discussion_id: str,
+        resolved: bool,
+    ) -> dict[str, Any]:
+        if not discussion_id.strip():
+            raise ValueError("discussion_id must not be empty")
+        path = self._merge_request_path(project, mr_iid)
+        encoded_id = quote(discussion_id, safe="")
+        return await self._client.request(
+            "PUT",
+            f"{path}/discussions/{encoded_id}",
+            json={"resolved": resolved},
+        )

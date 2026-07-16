@@ -113,3 +113,41 @@ async def test_network_failure_does_not_post_fallback() -> None:
     finally:
         await client.close()
     assert create.call_count == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_reads_replies_and_resolves_discussions() -> None:
+    list_route = respx.get(
+        DISCUSSIONS_URL, params={"page": "1", "per_page": "100"}
+    ).mock(
+        return_value=httpx.Response(
+            200, json=[{"id": "discussion-1", "notes": []}]
+        )
+    )
+    reply_route = respx.post(f"{DISCUSSIONS_URL}/discussion-1/notes").mock(
+        return_value=httpx.Response(
+            201, json={"id": 2, "body": "Fixed now."}
+        )
+    )
+    resolve_route = respx.put(f"{DISCUSSIONS_URL}/discussion-1").mock(
+        return_value=httpx.Response(
+            200, json={"id": "discussion-1", "resolved": True}
+        )
+    )
+    client = GitLabClient("https://gitlab.com/api/v4", "token")
+    service = DiscussionService(client)
+    try:
+        discussions = await service.get_discussions("group/delta", 7)
+        reply = await service.reply(
+            "group/delta", 7, "discussion-1", "Fixed now."
+        )
+        resolved = await service.set_resolved(
+            "group/delta", 7, "discussion-1", True
+        )
+    finally:
+        await client.close()
+    assert discussions[0]["id"] == "discussion-1"
+    assert reply["body"] == "Fixed now."
+    assert resolved["resolved"] is True
+    assert list_route.called and reply_route.called and resolve_route.called
