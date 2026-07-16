@@ -12,23 +12,32 @@
     <clipPath id="card"><rect x="712" y="48" width="504" height="224" rx="12"/></clipPath>
     <style>
       .mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
-      @keyframes scan { from { transform: translateY(0); } to { transform: translateY(132px); } }
-      @keyframes blink { 50% { opacity: 0; } }
-      @keyframes pulse { 50% { transform: scale(1.05); } }
-      @keyframes pop {
-        0%, 8%   { opacity: 0; transform: translateY(6px) scale(.94); }
-        18%, 80% { opacity: 1; transform: translateY(0)   scale(1); }
-        92%,100% { opacity: 0; transform: translateY(4px) scale(.97); }
+      @keyframes review-scan {
+        0%      { opacity: .09; transform: translateY(0); }
+        31%     { opacity: .09; transform: translateY(132px); }
+        62%     { opacity: .09; transform: translateY(0); }
+        64%,100% { opacity: 0; transform: translateY(0); }
       }
-      .scan   { animation: scan 3.4s ease-in-out infinite alternate; }
-      .caret  { animation: blink 1.05s steps(1) infinite; }
+      @keyframes review-caret {
+        0%, 66%, 70%, 76%, 82%, 88%, 94%, 100% { opacity: 0; }
+        67%, 73%, 79%, 85%, 91%                { opacity: 1; }
+      }
+      @keyframes review-comment {
+        0%, 64%   { opacity: 0; transform: translateY(6px) scale(.96); }
+        67%, 94% { opacity: 1; transform: translateY(0) scale(1); }
+        100%      { opacity: 0; transform: translateY(4px) scale(.98); }
+      }
+      @keyframes pulse { 50% { transform: scale(1.05); } }
+      .scan   { animation: review-scan 11s ease-in-out infinite; }
+      .caret  { animation: review-caret 11s steps(1) infinite; }
       .mark   { animation: pulse 3s ease-in-out infinite; transform-origin: 96px 126px; }
-      .bubble { animation: pop 5s ease-in-out infinite; transform-origin: 940px 196px; }
+      .bubble { animation: review-comment 11s ease-in-out infinite; transform-origin: 900px 218px; }
       @keyframes twinkle { 0%,100% { opacity: .05; } 50% { opacity: .22; } }
       .dot { animation: twinkle 3.2s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
         .scan, .caret, .mark, .bubble { animation: none; }
-        .bubble { opacity: 1; } .dot { animation: none; opacity: .12; }
+        .scan, .caret { opacity: 0; }
+        .bubble { opacity: 1; transform: none; } .dot { animation: none; opacity: .12; }
       }
     </style>
   </defs>
@@ -288,11 +297,11 @@
 
   <!-- inline comment bubble -->
   <g class="bubble">
-    <polygon points="936,196 950,196 943,186" fill="#1C2431"/>
-    <rect x="884" y="196" width="316" height="62" rx="10" fill="#1C2431" stroke="#2DD4BF" stroke-opacity="0.55"/>
-    <circle cx="906" cy="216" r="8" fill="url(#delta)"/>
-    <text x="922" y="221" font-size="13" font-weight="700" fill="#E6EDF3">you<tspan fill="#6E7681" font-weight="400">  &#183;  now</tspan></text>
-    <text x="898" y="243" class="mono" font-size="13" fill="#9DA7B3">type the return as string[]?</text>
+    <polygon points="892,218 908,218 900,204" fill="#1C2431"/>
+    <rect x="842" y="218" width="358" height="50" rx="10" fill="#1C2431" stroke="#2DD4BF" stroke-opacity="0.55"/>
+    <circle cx="864" cy="237" r="8" fill="url(#delta)"/>
+    <text x="880" y="242" font-size="13" font-weight="700" fill="#E6EDF3">you<tspan fill="#6E7681" font-weight="400">  &#183;  now</tspan></text>
+    <text x="854" y="261" class="mono" font-size="13" fill="#9DA7B3">type the return as string[]?</text>
   </g>
   </g>
 </svg>
