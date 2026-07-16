@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import socket
+import webbrowser
 
-from delta_review.config import resolve_target
+import uvicorn
+
+from delta_review.app import create_app
+from delta_review.config import Target, resolve_target
+from delta_review.security import make_runtime_context
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,6 +22,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _available_port() -> int:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
+def run_server(target: Target, *, cwd: Path, no_open: bool) -> None:
+    context = make_runtime_context(target, cwd)
+    app = create_app(context)
+    port = _available_port()
+    url = f"http://127.0.0.1:{port}/#session={context.session_secret}"
+    if no_open:
+        print(url)
+    else:
+        webbrowser.open(url)
+    uvicorn.run(app, host="127.0.0.1", port=port)
+
+
 def main() -> None:
     args = build_parser().parse_args()
     target = resolve_target(
@@ -25,4 +49,4 @@ def main() -> None:
         mr_iid=args.mr_iid,
         cwd=Path.cwd(),
     )
-    print(f"Resolved {target.host}/{target.project}!{target.mr_iid}")
+    run_server(target, cwd=Path.cwd(), no_open=args.no_open)
