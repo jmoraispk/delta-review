@@ -24,17 +24,60 @@ def context() -> RuntimeContext:
 async def test_api_rejects_missing_session_header() -> None:
     transport = httpx.ASGITransport(app=create_app(context()))
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test"
+        transport=transport, base_url="http://127.0.0.1"
     ) as client:
         response = await client.get("/api/config")
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
+async def test_api_rejects_non_loopback_host_and_cross_site_origin() -> None:
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://127.0.0.1"
+    ) as client:
+        hostile_host = await client.get(
+            "/api/config",
+            headers={
+                "Host": "attacker.example",
+                "X-Delta-Session": "browser-secret",
+            },
+        )
+        hostile_origin = await client.post(
+            "/api/discussions/existing/notes",
+            headers={
+                "Origin": "https://attacker.example",
+                "X-Delta-Session": "browser-secret",
+            },
+            json={"body": "cross-site"},
+        )
+    assert hostile_host.status_code == 400
+    assert hostile_host.json()["code"] == "invalid_host"
+    assert hostile_origin.status_code == 403
+    assert hostile_origin.json()["code"] == "invalid_origin"
+
+
+@pytest.mark.asyncio
+async def test_api_responses_disable_caching_and_set_browser_guards() -> None:
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://127.0.0.1"
+    ) as client:
+        response = await client.get(
+            "/api/config",
+            headers={"X-Delta-Session": "browser-secret"},
+        )
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "default-src 'self'" in response.headers["content-security-policy"]
+
+
+@pytest.mark.asyncio
 async def test_api_accepts_session_header_without_exposing_token() -> None:
     transport = httpx.ASGITransport(app=create_app(context()))
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test"
+        transport=transport, base_url="http://127.0.0.1"
     ) as client:
         response = await client.get(
             "/api/config",
@@ -84,7 +127,7 @@ async def test_merge_request_and_diff_routes_use_gitlab() -> None:
     )
     transport = httpx.ASGITransport(app=create_app(context()))
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test"
+        transport=transport, base_url="http://127.0.0.1"
     ) as client:
         headers = {"X-Delta-Session": "browser-secret"}
         mr_response = await client.get("/api/mr", headers=headers)
@@ -107,7 +150,7 @@ async def test_gitlab_errors_are_normalized() -> None:
     )
     transport = httpx.ASGITransport(app=create_app(context()))
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test"
+        transport=transport, base_url="http://127.0.0.1"
     ) as client:
         response = await client.get(
             "/api/mr", headers={"X-Delta-Session": "browser-secret"}
@@ -169,7 +212,7 @@ async def test_discussion_routes_create_reply_and_resolve() -> None:
     transport = httpx.ASGITransport(app=create_app(context()))
     headers = {"X-Delta-Session": "browser-secret"}
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test"
+        transport=transport, base_url="http://127.0.0.1"
     ) as client:
         list_response = await client.get("/api/discussions", headers=headers)
         create_response = await client.post(
@@ -208,7 +251,7 @@ async def test_discussion_routes_create_reply_and_resolve() -> None:
 async def test_comment_body_must_not_be_blank() -> None:
     transport = httpx.ASGITransport(app=create_app(context()))
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test"
+        transport=transport, base_url="http://127.0.0.1"
     ) as client:
         response = await client.post(
             "/api/discussions/existing/notes",

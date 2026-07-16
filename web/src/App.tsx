@@ -8,6 +8,7 @@ import type {
   Discussion,
   MergeRequest,
 } from './api/types'
+import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
 
 const DiffViewer = lazy(() =>
@@ -45,21 +46,12 @@ export function App() {
 
   if (error) {
     return (
-      <main className="state-screen">
-        <div className="state-mark" aria-hidden="true">
-          !
-        </div>
-        <h1>Review could not be loaded</h1>
-        <p>{error.message}</p>
-        <button
-          type="button"
-          onClick={() => {
+      <ErrorState
+        error={error}
+        onRetry={() => {
             void Promise.all(queries.map((query) => query.refetch()))
-          }}
-        >
-          Retry
-        </button>
-      </main>
+        }}
+      />
     )
   }
 

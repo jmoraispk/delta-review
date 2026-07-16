@@ -8,7 +8,7 @@ import webbrowser
 import uvicorn
 
 from delta_review.app import create_app
-from delta_review.config import Target, resolve_target
+from delta_review.config import ConfigError, Target, resolve_target
 from delta_review.security import make_runtime_context
 
 
@@ -28,16 +28,24 @@ def _available_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def run_server(target: Target, *, cwd: Path, no_open: bool) -> None:
+def run_server(
+    target: Target,
+    *,
+    cwd: Path,
+    no_open: bool,
+    bind_host: str = "127.0.0.1",
+) -> None:
+    if bind_host != "127.0.0.1":
+        raise ConfigError("Delta must bind to the 127.0.0.1 loopback address")
     context = make_runtime_context(target, cwd)
     app = create_app(context)
     port = _available_port()
-    url = f"http://127.0.0.1:{port}/#session={context.session_secret}"
+    url = f"http://{bind_host}:{port}/#session={context.session_secret}"
     if no_open:
         print(url)
     else:
         webbrowser.open(url)
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host=bind_host, port=port)
 
 
 def main() -> None:

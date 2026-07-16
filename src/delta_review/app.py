@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import ipaddress
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from delta_review.gitlab.client import GitLabClient, GitLabError
 from delta_review.gitlab.diffs import DiffService
@@ -18,6 +20,39 @@ from delta_review.models import (
     ResolutionRequest,
 )
 from delta_review.security import RuntimeContext
+
+
+def _is_loopback_authority(authority: str) -> bool:
+    hostname = urlsplit(f"//{authority}").hostname
+    if hostname is None:
+        return False
+    if hostname.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
+def _secure_response(response: Response) -> Response:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "base-uri 'none'; "
+        "connect-src 'self'; "
+        "font-src 'self'; "
+        "frame-ancestors 'none'; "
+        "img-src 'self' data:; "
+        "object-src 'none'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "worker-src 'self' blob:"
+    )
+    return response
 
 
 def create_app(
@@ -42,6 +77,46 @@ def create_app(
         redoc_url=None,
         lifespan=lifespan,
     )
+
+    @app.middleware("http")
+    async def protect_loopback(request: Request, call_next):
+        authority = request.headers.get("host", "")
+        if not _is_loopback_authority(authority):
+            return _secure_response(
+                JSONResponse(
+                    status_code=400,
+                    content={
+                        "code": "invalid_host",
+                        "message": "Delta only accepts loopback hosts",
+                    },
+                )
+            )
+
+        origin = request.headers.get("origin")
+        fetch_site = request.headers.get("sec-fetch-site")
+        if request.method not in {"GET", "HEAD", "OPTIONS"} and (
+            fetch_site == "cross-site"
+            or (
+                origin is not None
+                and (
+                    urlsplit(origin).scheme not in {"http", "https"}
+                    or urlsplit(origin).netloc.casefold()
+                    != authority.casefold()
+                )
+            )
+        ):
+            return _secure_response(
+                JSONResponse(
+                    status_code=403,
+                    content={
+                        "code": "invalid_origin",
+                        "message": "Cross-origin writes are not allowed",
+                    },
+                )
+            )
+
+        response = await call_next(request)
+        return _secure_response(response)
 
     def require_session(
         x_delta_session: str | None = Header(default=None),

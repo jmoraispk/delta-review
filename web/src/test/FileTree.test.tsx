@@ -46,3 +46,22 @@ test('keyboard navigation changes files and focuses the diff', () => {
   fireEvent.keyDown(activeFile, { key: 'Enter' })
   expect(onFocusDiff).toHaveBeenCalledOnce()
 })
+
+test('keeps large file lists virtualized', () => {
+  const manyFiles = Array.from({ length: 2_000 }, (_, index) => ({
+    ...files[0],
+    old_path: `src/file-${index}.py`,
+    new_path: `src/file-${index}.py`,
+  }))
+  render(
+    <FileTree
+      files={manyFiles}
+      activeIndex={0}
+      onSelect={() => undefined}
+      onFocusDiff={() => undefined}
+    />,
+  )
+
+  expect(screen.getAllByRole('button').length).toBeLessThan(100)
+  expect(screen.queryByText('src/file-1999.py')).not.toBeInTheDocument()
+})

@@ -1,5 +1,21 @@
 const SESSION_KEY = 'delta-session'
 
+export class ApiError extends Error {
+  readonly status: number
+  readonly code?: string
+
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 export function initializeSession(): string {
   const hash = new URLSearchParams(window.location.hash.slice(1))
   const fromHash = hash.get('session')
@@ -28,8 +44,18 @@ export async function api<T>(
 
   const response = await fetch(path, { ...init, headers })
   if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new Error(error?.message ?? `Request failed (${response.status})`)
+    const payload = (await response.json().catch(() => null)) as {
+      code?: string
+      detail?: string
+      message?: string
+    } | null
+    throw new ApiError(
+      response.status,
+      payload?.message ??
+        payload?.detail ??
+        `Request failed (${response.status})`,
+      payload?.code,
+    )
   }
   return response.json() as Promise<T>
 }

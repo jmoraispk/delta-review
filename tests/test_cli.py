@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from delta_review import cli
-from delta_review.config import Target
+from delta_review.config import ConfigError, Target
 from delta_review.security import RuntimeContext
 
 
@@ -64,3 +64,13 @@ def test_no_open_prints_the_session_url(
     assert capsys.readouterr().out.strip() == (
         "http://127.0.0.1:43210/#session=browser-secret"
     )
+
+
+def test_run_server_rejects_non_loopback_binding(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="loopback"):
+        cli.run_server(
+            target(),
+            cwd=tmp_path,
+            no_open=True,
+            bind_host="0.0.0.0",
+        )
