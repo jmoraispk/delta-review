@@ -1,11 +1,11 @@
-# Delta Public Tool Design
+# delta-review Public Tool Design
 
 **Status:** Approved for planning  
 **Date:** 2026-07-16
 
 ## Purpose
 
-Delta will be a public, local-first GitLab merge-request review tool for GitLab.com and self-hosted GitLab users. It will preserve the familiar GitLab review model while making diff navigation and inline discussion work substantially more responsive.
+`delta-review` will be a public, local-first GitLab merge-request review tool for GitLab.com and self-hosted GitLab users. The interface retains the shorter Delta name and the installed console command remains `delta`. It will preserve the familiar GitLab review model while making diff navigation and inline discussion work substantially more responsive.
 
 The first release targets developers who already use `glab` and `uv`. GitLab remains the source of truth, and Delta runs only on the developer's machine.
 

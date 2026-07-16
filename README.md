@@ -2,7 +2,7 @@
   <img src="./delta-assets/banner.svg" alt="Delta — GitLab MR reviews, minus the wait." width="1280">
 </p>
 
-# Delta
+# delta-review
 
 Delta is a local-first GitLab merge-request review interface designed to make
 large diffs and inline discussions feel fast.
@@ -60,9 +60,9 @@ The planned public MVP uses:
 - TanStack Query and virtualization for responsive navigation; and
 - `@git-diff-view/react` for unified and split diff rendering.
 
-The Python distribution will be named `delta-review`, with `delta` as its
-console command. The exact launch command will be documented once the package
-exists.
+The repository and Python distribution are named `delta-review`. The interface
+keeps the shorter Delta branding and installs `delta` as its console command.
+The exact launch command will be documented once the package exists.
 
 ## Design resources
 
