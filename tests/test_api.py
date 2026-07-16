@@ -1,5 +1,6 @@
 import httpx
 import pytest
+import respx
 
 from delta_review.app import create_app
 from delta_review.config import Target
@@ -46,3 +47,74 @@ async def test_api_accepts_session_header_without_exposing_token() -> None:
         "mr_iid": 7,
     }
     assert "secret-token" not in response.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_merge_request_and_diff_routes_use_gitlab() -> None:
+    respx.get(
+        "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "iid": 7,
+                "title": "Improve parser errors",
+                "web_url": "https://gitlab.com/group/delta/-/merge_requests/7",
+                "state": "opened",
+                "source_branch": "parser-errors",
+                "target_branch": "main",
+            },
+        )
+    )
+    respx.get(
+        "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7/diffs",
+        params={"page": "1", "per_page": "100"},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "old_path": "src/parser.py",
+                    "new_path": "src/parser.py",
+                    "diff": "@@ -1 +1 @@",
+                }
+            ],
+        )
+    )
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        headers = {"X-Delta-Session": "browser-secret"}
+        mr_response = await client.get("/api/mr", headers=headers)
+        diff_response = await client.get("/api/diffs", headers=headers)
+    assert mr_response.status_code == 200
+    assert mr_response.json()["title"] == "Improve parser errors"
+    assert diff_response.status_code == 200
+    assert diff_response.json()[0]["new_path"] == "src/parser.py"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_gitlab_errors_are_normalized() -> None:
+    respx.get(
+        "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7"
+    ).mock(
+        return_value=httpx.Response(
+            404, json={"message": "404 Project Not Found"}
+        )
+    )
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/api/mr", headers={"X-Delta-Session": "browser-secret"}
+        )
+    assert response.status_code == 404
+    assert response.json() == {
+        "code": "gitlab_error",
+        "message": "404 Project Not Found",
+        "status": 404,
+    }
