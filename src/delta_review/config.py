@@ -74,11 +74,14 @@ def resolve_target(
     mr_iid: int | None,
     cwd: Path,
 ) -> Target:
+    url_api_base: str | None = None
     if mr_url:
         parsed = parse_mr_url(mr_url)
         final_host = host or parsed.host
         final_project = project or parsed.project
         mr_iid = mr_iid or parsed.mr_iid
+        if host is None:
+            url_api_base = parsed.api_base
     else:
         detected_host: str | None = None
         detected_project: str | None = None
@@ -97,13 +100,17 @@ def resolve_target(
 
     api_host = _run(
         ["glab", "config", "get", "api_host", "--host", final_host], cwd
-    ) or final_host
+    )
     api_protocol = _run(
         ["glab", "config", "get", "api_protocol", "--host", final_host], cwd
-    ) or "https"
+    )
+    if url_api_base and not api_host and not api_protocol:
+        api_base = url_api_base
+    else:
+        api_base = f"{api_protocol or 'https'}://{api_host or final_host}/api/v4"
     return Target(
         host=final_host,
-        api_base=f"{api_protocol}://{api_host}/api/v4",
+        api_base=api_base,
         project=final_project,
         mr_iid=mr_iid,
     )

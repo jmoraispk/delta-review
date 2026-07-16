@@ -1,7 +1,7 @@
 [project]
 name = "delta-review"
 version = "0.1.0"
-description = "Add your description here"
+description = "A local-first GitLab merge request review interface"
 readme = "README.md"
 authors = [
     { name = "Joao Morais", email = "jmoraispk@gmail.com" }

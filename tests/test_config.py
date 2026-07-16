@@ -78,3 +78,19 @@ def test_explicit_values_override_mr_url(
         "new/project",
         9,
     )
+
+
+def test_mr_url_preserves_scheme_and_nonstandard_port(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(config, "_run", lambda command, cwd: "")
+    target = config.resolve_target(
+        mr_url=(
+            "http://gitlab.example.com:8443/group/project/-/merge_requests/7"
+        ),
+        host=None,
+        project=None,
+        mr_iid=None,
+        cwd=tmp_path,
+    )
+    assert target.api_base == "http://gitlab.example.com:8443/api/v4"
