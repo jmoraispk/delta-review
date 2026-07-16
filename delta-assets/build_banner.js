@@ -1,0 +1,131 @@
+const fs = require("fs");
+const path = require("path");
+
+const TAGLINE = "GitLab MR reviews, minus the wait.";
+
+function dotGrid() {
+  const sp = 46, r = 1.9, out = [];
+  for (let y = 24; y < 320; y += sp) {
+    for (let x = 24; x < 1280; x += sp) {
+      const teal = ((Math.round(x / sp) + Math.round(y / sp)) % 2) === 0;
+      const col = teal ? "#2DD4BF" : "#3FB950";
+      const d = (((x / sp) * 0.13 + (y / sp) * 0.19) % 3.2).toFixed(2);
+      out.push(`<circle class="dot" cx="${x}" cy="${y}" r="${r}" fill="${col}" opacity="0.12" style="animation-delay:-${d}s"/>`);
+    }
+  }
+  return `  <g aria-hidden="true">\n    ${out.join("\n    ")}\n  </g>\n`;
+}
+
+function svg({ withDots }) {
+  const dotCss = withDots
+    ? `
+      @keyframes twinkle { 0%,100% { opacity: .05; } 50% { opacity: .22; } }
+      .dot { animation: twinkle 3.2s ease-in-out infinite; }`
+    : "";
+  const dotReduced = withDots ? " .dot { animation: none; opacity: .12; }" : "";
+  const grid = withDots ? dotGrid() : "";
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" role="img" aria-label="Delta — ${TAGLINE}">
+  <defs>
+    <linearGradient id="delta" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2DD4BF"/>
+      <stop offset="100%" stop-color="#3FB950"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="72%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#132029"/>
+      <stop offset="100%" stop-color="#0D1117"/>
+    </radialGradient>
+    <clipPath id="round"><rect x="0" y="0" width="1280" height="320" rx="16"/></clipPath>
+    <clipPath id="card"><rect x="712" y="48" width="504" height="224" rx="12"/></clipPath>
+    <style>
+      .mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+      @keyframes scan { from { transform: translateY(0); } to { transform: translateY(132px); } }
+      @keyframes blink { 50% { opacity: 0; } }
+      @keyframes pulse { 50% { transform: scale(1.05); } }
+      @keyframes pop {
+        0%, 8%   { opacity: 0; transform: translateY(6px) scale(.94); }
+        18%, 80% { opacity: 1; transform: translateY(0)   scale(1); }
+        92%,100% { opacity: 0; transform: translateY(4px) scale(.97); }
+      }
+      .scan   { animation: scan 3.4s ease-in-out infinite alternate; }
+      .caret  { animation: blink 1.05s steps(1) infinite; }
+      .mark   { animation: pulse 3s ease-in-out infinite; transform-origin: 96px 126px; }
+      .bubble { animation: pop 5s ease-in-out infinite; transform-origin: 940px 196px; }${dotCss}
+      @media (prefers-reduced-motion: reduce) {
+        .scan, .caret, .mark, .bubble { animation: none; }
+        .bubble { opacity: 1; }${dotReduced}
+      }
+    </style>
+  </defs>
+
+  <g clip-path="url(#round)">
+  <!-- background -->
+  <rect width="1280" height="320" fill="#0D1117"/>
+  <rect width="1280" height="320" fill="url(#glow)"/>
+${grid}
+  <!-- ===== left: wordmark ===== -->
+  <g class="mark">
+    <polygon points="96,92 128,156 64,156" fill="url(#delta)"/>
+    <polygon points="96,110 116,150 76,150" fill="#0D1117" opacity="0.35"/>
+  </g>
+  <text x="150" y="151" font-size="74" font-weight="700" fill="#E6EDF3" letter-spacing="-1">delta</text>
+  <text x="66" y="197" font-size="22" fill="#8B949E">${TAGLINE}</text>
+
+  <!-- pill -->
+  <rect x="66" y="222" width="337" height="40" rx="20" fill="#161B22" stroke="#30363D"/>
+  <circle cx="88" cy="242" r="5" fill="#3FB950"/>
+  <text x="104" y="247" class="mono" font-size="15" fill="#9DA7B3">reads your glab token &#8212; no login</text>
+
+  <!-- ===== right: animated diff card ===== -->
+  <rect x="712" y="48" width="504" height="224" rx="12" fill="#161B22" stroke="#30363D"/>
+  <circle cx="736" cy="70" r="5" fill="#F85149"/>
+  <circle cx="754" cy="70" r="5" fill="#D29922"/>
+  <circle cx="772" cy="70" r="5" fill="#3FB950"/>
+  <text x="792" y="75" class="mono" font-size="14" fill="#6E7681">orderService.ts</text>
+  <line x1="712" y1="88" x2="1216" y2="88" stroke="#30363D"/>
+
+  <g clip-path="url(#card)">
+    <rect class="scan" x="716" y="100" width="496" height="26" fill="#2DD4BF" opacity="0.09"/>
+    <rect x="716" y="131" width="496" height="24" fill="#F85149" opacity="0.10"/>
+    <rect x="716" y="158" width="496" height="24" fill="#3FB950" opacity="0.12"/>
+    <rect x="716" y="185" width="496" height="24" fill="#3FB950" opacity="0.12"/>
+    <g class="mono" font-size="14" fill="#484F58" text-anchor="end">
+      <text x="752" y="122">41</text>
+      <text x="752" y="149">42</text>
+      <text x="752" y="176">43</text>
+      <text x="752" y="203">44</text>
+      <text x="752" y="230">45</text>
+      <text x="752" y="257">46</text>
+    </g>
+    <g class="mono" font-size="14">
+      <text x="760" y="149" fill="#F85149">-</text>
+      <text x="760" y="176" fill="#3FB950">+</text>
+      <text x="760" y="203" fill="#3FB950">+</text>
+    </g>
+    <g class="mono" font-size="14" fill="#C9D1D9">
+      <text x="776" y="122"><tspan fill="#FF7B72">const</tspan> items = <tspan fill="#FF7B72">await</tspan> <tspan fill="#D2A8FF">fetch</tspan>(url)</text>
+      <text x="776" y="149"><tspan fill="#FF7B72">return</tspan> res.data.items</text>
+      <text x="776" y="176"><tspan fill="#FF7B72">const</tspan> { items } = <tspan fill="#FF7B72">await</tspan> res.<tspan fill="#D2A8FF">json</tspan>()</text>
+      <text x="776" y="203"><tspan fill="#FF7B72">return</tspan> items ?? []</text>
+      <text x="776" y="230">}</text>
+      <text x="776" y="257"><tspan fill="#FF7B72">export default</tspan> handler</text>
+    </g>
+    <rect class="caret" x="900" y="190" width="2" height="17" fill="#2DD4BF"/>
+  </g>
+
+  <!-- inline comment bubble -->
+  <g class="bubble">
+    <polygon points="936,196 950,196 943,186" fill="#1C2431"/>
+    <rect x="884" y="196" width="316" height="62" rx="10" fill="#1C2431" stroke="#2DD4BF" stroke-opacity="0.55"/>
+    <circle cx="906" cy="216" r="8" fill="url(#delta)"/>
+    <text x="922" y="221" font-size="13" font-weight="700" fill="#E6EDF3">you<tspan fill="#6E7681" font-weight="400">  &#183;  now</tspan></text>
+    <text x="898" y="243" class="mono" font-size="13" fill="#9DA7B3">type the return as string[]?</text>
+  </g>
+  </g>
+</svg>
+`;
+}
+
+const outputPath = path.join(__dirname, "banner.svg");
+fs.writeFileSync(outputPath, svg({ withDots: true }));
+console.log(`wrote ${outputPath}`);
