@@ -74,6 +74,20 @@ async def test_api_responses_disable_caching_and_set_browser_guards() -> None:
 
 
 @pytest.mark.asyncio
+async def test_root_serves_packaged_spa_without_runtime_secrets() -> None:
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://127.0.0.1"
+    ) as client:
+        response = await client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Delta" in response.text
+    assert "browser-secret" not in response.text
+    assert "secret-token" not in response.text
+
+
+@pytest.mark.asyncio
 async def test_api_accepts_session_header_without_exposing_token() -> None:
     transport = httpx.ASGITransport(app=create_app(context()))
     async with httpx.AsyncClient(

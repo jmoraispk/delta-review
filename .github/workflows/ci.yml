@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix web
+
+      - name: Test backend
+        run: uv run pytest
+
+      - name: Test frontend
+        run: npm test --prefix web -- --run
+
+      - name: Lint frontend
+        run: npm run lint --prefix web
+
+      - name: Build frontend
+        run: npm run build --prefix web
+
+      - name: Build Python distributions
+        run: uv build
+
+      - name: Smoke-test wheel entry point
+        run: uv run --no-project --isolated --with $(ls dist/*.whl) delta --help

@@ -3,10 +3,12 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import ipaddress
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from delta_review.gitlab.client import GitLabClient, GitLabError
 from delta_review.gitlab.diffs import DiffService
@@ -77,6 +79,12 @@ def create_app(
         redoc_url=None,
         lifespan=lifespan,
     )
+    static_dir = Path(__file__).parent / "static"
+    app.mount(
+        "/assets",
+        StaticFiles(directory=static_dir / "assets"),
+        name="assets",
+    )
 
     @app.middleware("http")
     async def protect_loopback(request: Request, call_next):
@@ -117,6 +125,17 @@ def create_app(
 
         response = await call_next(request)
         return _secure_response(response)
+
+    @app.get("/", include_in_schema=False)
+    async def get_spa() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def get_favicon() -> FileResponse:
+        return FileResponse(
+            static_dir / "favicon.svg",
+            media_type="image/svg+xml",
+        )
 
     def require_session(
         x_delta_session: str | None = Header(default=None),

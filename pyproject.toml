@@ -3,6 +3,20 @@ name = "delta-review"
 version = "0.1.0"
 description = "A local-first GitLab merge request review interface"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["code-review", "gitlab", "merge-request"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 authors = [
     { name = "Joao Morais", email = "jmoraispk@gmail.com" }
 ]
@@ -15,6 +29,11 @@ dependencies = [
 
 [project.scripts]
 delta = "delta_review.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jmoraispk/delta-review"
+Issues = "https://github.com/jmoraispk/delta-review/issues"
+Repository = "https://github.com/jmoraispk/delta-review"
 
 [build-system]
 requires = ["uv_build>=0.9.11,<0.10.0"]
