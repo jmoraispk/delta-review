@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./delta-assets/banner.svg" alt="Delta — GitLab MR reviews, minus the wait." width="1280">
+  <img src="./assets/banner.svg" alt="Delta — GitLab MR reviews, minus the wait." width="1280">
 </p>
 
 # delta-review
@@ -12,13 +12,13 @@ of truth.
 
 ## How it works
 
-![Browser SPA to local proxy to GitLab API architecture](./delta-assets/how_works.png)
+![Browser SPA to local proxy to GitLab API architecture](./assets/how_works.png)
 
 ## Private by design
 
-![Delta privacy model](./delta-assets/private.png)
+![Delta privacy model](./assets/private.png)
 
 ## Design notes
 
 - [Product design](./design-doc.md)
-- [Architecture slides](./delta-assets/how-delta-works.pptx)
+- [Architecture slides](./assets/how-delta-works.pptx)
