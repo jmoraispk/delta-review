@@ -11,6 +11,28 @@ function errorCopy(error: Error): {
   mark: string
 } {
   const status = error instanceof ApiError ? error.status : null
+  const code = error instanceof ApiError ? error.code : null
+  if (code === 'gitlab_authentication_failed') {
+    return {
+      heading: 'GitLab authentication failed',
+      guidance: 'Run glab auth login for this GitLab host, then retry.',
+      mark: '401',
+    }
+  }
+  if (code === 'diff_truncated') {
+    return {
+      heading: 'Diff is incomplete',
+      guidance: 'GitLab truncated this merge request diff. Open it in GitLab.',
+      mark: '422',
+    }
+  }
+  if (code === 'gitlab_timeout') {
+    return {
+      heading: 'GitLab request timed out',
+      guidance: 'Check the GitLab connection, then retry.',
+      mark: '504',
+    }
+  }
   if (status === 401) {
     return {
       heading: 'Session expired',

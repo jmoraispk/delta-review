@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 dist/
 /docs/superpowers/
+/web/playwright-report/
+/web/test-results/

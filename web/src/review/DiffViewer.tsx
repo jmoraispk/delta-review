@@ -2,10 +2,11 @@ import {
   DiffModeEnum,
   DiffView,
   SplitSide,
-  type DiffFile as ParsedDiffFile,
+  DiffFile as ParsedDiffFile,
 } from '@git-diff-view/react'
 import '@git-diff-view/react/styles/diff-view-pure.css'
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -76,6 +77,41 @@ function groupDiscussions(file: DiffFile, discussions: Discussion[]) {
   return { extendData: { oldFile, newFile }, general }
 }
 
+function WidgetCloseCapture({
+  onClose,
+  onReady,
+}: {
+  onClose: () => void
+  onReady: (close: (() => void) | null) => void
+}) {
+  useEffect(() => {
+    onReady(onClose)
+    return () => onReady(null)
+  }, [onClose, onReady])
+  return null
+}
+
+type DiffData = ReturnType<typeof toDiffData>
+type DiffBundle = ReturnType<ParsedDiffFile['_getFullBundle']>
+type DiffTheme = 'light' | 'dark'
+
+const processedDiffCache = new WeakMap<
+  DiffFile,
+  Partial<Record<DiffTheme, DiffBundle>>
+>()
+
+function processDiff(
+  data: DiffData,
+  theme: 'light' | 'dark',
+): ParsedDiffFile {
+  const diffFile = ParsedDiffFile.createInstance(data)
+  diffFile.initTheme(theme)
+  diffFile.initRaw()
+  diffFile.buildSplitDiffLines()
+  diffFile.buildUnifiedDiffLines()
+  return diffFile
+}
+
 export function DiffViewer({
   file,
   discussions = [],
@@ -87,12 +123,84 @@ export function DiffViewer({
   const [theme, setTheme] = useState<'light' | 'dark'>(preferredTheme)
   const [highlight, setHighlight] = useState(false)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
+  const [processedDiff, setProcessedDiff] =
+    useState<ParsedDiffFile | null>(null)
   const shiftPressed = useRef(false)
   const diffViewRef = useRef<DiffViewerRef>(null)
+  const diffLibraryRef = useRef<HTMLDivElement>(null)
+  const widgetCloseRef = useRef<(() => void) | null>(null)
+  const registerWidgetClose = useCallback(
+    (close: (() => void) | null) => {
+      widgetCloseRef.current = close
+    },
+    [],
+  )
   const { extendData, general } = useMemo(
     () => groupDiscussions(file, discussions),
     [discussions, file],
   )
+  const diffData = useMemo(
+    () => toDiffData(file),
+    [file],
+  )
+
+  useEffect(() => {
+    let active = true
+    setProcessedDiff(null)
+
+    const cachedBundle = processedDiffCache.get(file)?.[theme]
+    if (cachedBundle) {
+      setProcessedDiff(
+        ParsedDiffFile.createInstance(diffData, cachedBundle),
+      )
+      return
+    }
+
+    const rememberBundle = (bundle: DiffBundle) => {
+      const bundles = processedDiffCache.get(file) ?? {}
+      bundles[theme] = bundle
+      processedDiffCache.set(file, bundles)
+    }
+
+    if (typeof Worker === 'undefined') {
+      const parsed = processDiff(diffData, theme)
+      rememberBundle(parsed._getFullBundle())
+      setProcessedDiff(parsed)
+      return
+    }
+
+    const worker = new Worker(
+      new URL('./diffWorker.ts', import.meta.url),
+      { type: 'module' },
+    )
+    const fallback = () => {
+      worker.terminate()
+      if (!active) return
+      const parsed = processDiff(diffData, theme)
+      rememberBundle(parsed._getFullBundle())
+      setProcessedDiff(parsed)
+    }
+    const fallbackTimer = window.setTimeout(fallback, 2_000)
+    worker.onmessage = (
+      event: MessageEvent<{ bundle: DiffBundle }>,
+    ) => {
+      if (!active) return
+      window.clearTimeout(fallbackTimer)
+      rememberBundle(event.data.bundle)
+      setProcessedDiff(
+        ParsedDiffFile.createInstance(diffData, event.data.bundle),
+      )
+    }
+    worker.onerror = fallback
+    worker.onmessageerror = fallback
+    worker.postMessage({ data: diffData, theme })
+
+    return () => {
+      active = false
+      window.clearTimeout(fallbackTimer)
+      worker.terminate()
+    }
+  }, [diffData, file, theme])
 
   useEffect(() => {
     setSelection(null)
@@ -100,6 +208,7 @@ export function DiffViewer({
 
   useEffect(() => {
     setHighlight(false)
+    if (!processedDiff) return
     const enableHighlight = () => setHighlight(true)
     if (typeof window.requestIdleCallback === 'function') {
       const idleId = window.requestIdleCallback(enableHighlight)
@@ -107,11 +216,43 @@ export function DiffViewer({
     }
     const timeoutId = window.setTimeout(enableHighlight, 0)
     return () => window.clearTimeout(timeoutId)
-  }, [file.old_path, file.new_path])
+  }, [processedDiff])
 
   useEffect(() => {
     onSelectionChange?.(selection)
   }, [onSelectionChange, selection])
+
+  useEffect(() => {
+    const root = diffLibraryRef.current
+    if (!root) return
+
+    const labelCommentButtons = () => {
+      for (const button of root.querySelectorAll<HTMLButtonElement>(
+        '.diff-add-widget',
+      )) {
+        const holder = button.closest<HTMLElement>(
+          '[data-add-widget]',
+        )
+        const side = holder?.dataset.addWidget
+        const line = button
+          .closest('[data-state="diff"]')
+          ?.querySelector<HTMLElement>(
+            `[data-line-${side === 'old' ? 'old' : 'new'}-num]`,
+          )
+          ?.textContent?.trim()
+        button.type = 'button'
+        button.setAttribute(
+          'aria-label',
+          `Comment on ${side ?? 'diff'} line ${line ?? 'unknown'}`,
+        )
+      }
+    }
+
+    labelCommentButtons()
+    const observer = new MutationObserver(labelCommentButtons)
+    observer.observe(root, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [mode, processedDiff])
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -149,8 +290,9 @@ export function DiffViewer({
 
   function selectLine(lineNumber: number, side: SplitSide) {
     const point = pointForLine(lineNumber, side)
+    const shouldExtend = shiftPressed.current
     setSelection((current) =>
-      extendSelection(shiftPressed.current ? current : null, point),
+      extendSelection(shouldExtend ? current : null, point),
     )
     shiftPressed.current = false
   }
@@ -159,12 +301,14 @@ export function DiffViewer({
     shiftPressed.current = event.shiftKey
   }
 
-  function focusPostedDiscussion(
-    discussion: Discussion,
-    closeWidget: () => void,
-  ) {
+  function closeComposer() {
     setSelection(null)
-    closeWidget()
+    widgetCloseRef.current?.()
+    widgetCloseRef.current = null
+  }
+
+  function focusPostedDiscussion(discussion: Discussion) {
+    closeComposer()
     requestAnimationFrame(() => {
       const thread = Array.from(
         document.querySelectorAll<HTMLElement>('[data-discussion-id]'),
@@ -191,6 +335,17 @@ export function DiffViewer({
               : 'This file was collapsed by GitLab. Open it in GitLab to inspect the full content.'}
           </p>
         </div>
+      </section>
+    )
+  }
+
+  if (!processedDiff) {
+    return (
+      <section
+        className="diff-stage diff-loading"
+        aria-label={file.new_path}
+      >
+        Preparing diff…
       </section>
     )
   }
@@ -241,13 +396,14 @@ export function DiffViewer({
 
       <div
         className="diff-library"
+        ref={diffLibraryRef}
         onClickCapture={rememberModifier}
         onMouseDownCapture={rememberModifier}
       >
         <DiffView
           key={`${file.old_path}:${file.new_path}:${mode}:${theme}`}
           ref={diffViewRef}
-          data={toDiffData(file)}
+          diffFile={processedDiff}
           diffViewMode={
             mode === 'split' ? DiffModeEnum.Split : DiffModeEnum.Unified
           }
@@ -257,20 +413,12 @@ export function DiffViewer({
           diffViewFontSize={12}
           extendData={extendData}
           onAddWidgetClick={selectLine}
-          renderWidgetLine={({ onClose }) =>
-            selection ? (
-              <CommentComposer
-                selection={toBackendSelection(file, selection)}
-                onCancel={() => {
-                  setSelection(null)
-                  onClose()
-                }}
-                onPosted={(discussion) =>
-                  focusPostedDiscussion(discussion, onClose)
-                }
-              />
-            ) : null
-          }
+          renderWidgetLine={({ onClose }) => (
+            <WidgetCloseCapture
+              onClose={onClose}
+              onReady={registerWidgetClose}
+            />
+          )}
           renderExtendLine={({ data }) => (
             <div className="line-discussions">
               {data.map((discussion) => (
@@ -283,6 +431,13 @@ export function DiffViewer({
           )}
         />
       </div>
+      {selection ? (
+        <CommentComposer
+          selection={toBackendSelection(file, selection)}
+          onCancel={closeComposer}
+          onPosted={focusPostedDiscussion}
+        />
+      ) : null}
     </section>
   )
 }

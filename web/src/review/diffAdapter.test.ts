@@ -29,3 +29,19 @@ test('the diff library parses one removed and one added line', () => {
   expect(parsed.deletionLength).toBe(1)
   expect(parsed.additionLength).toBe(1)
 })
+
+test('preserves final-line whitespace in GitLab hunks', () => {
+  const whitespaceOnly = {
+    ...file,
+    diff: '@@ -0,0 +1 @@\n+  \n',
+  }
+
+  expect(synthesizeUnifiedDiff(whitespaceOnly)).toMatch(/\+  \n$/)
+
+  const parsed = ParsedDiffFile.createInstance(
+    toDiffData(whitespaceOnly),
+  )
+  parsed.init()
+  parsed.buildUnifiedDiffLines()
+  expect(parsed.additionLength).toBe(1)
+})

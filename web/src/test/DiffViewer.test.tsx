@@ -12,7 +12,9 @@ import type { DiffFile, Discussion } from '../api/types'
 import { DiffViewer } from '../review/DiffViewer'
 import { TestProviders } from './fixtures'
 
-vi.mock('@git-diff-view/react', () => {
+vi.mock('@git-diff-view/react', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@git-diff-view/react')>()
   const MockDiffView = forwardRef(
     (
       {
@@ -83,6 +85,7 @@ vi.mock('@git-diff-view/react', () => {
     },
   )
   return {
+    ...actual,
     DiffModeEnum: { Split: 3, Unified: 4 },
     DiffView: MockDiffView,
     SplitSide: { old: 1, new: 2 },
@@ -119,6 +122,7 @@ test('opens a line selection and extends it with shift-click', () => {
   render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
 
   fireEvent.click(screen.getByRole('button', { name: 'Comment line 12' }))
+  expect(screen.getByLabelText('Comment')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Comment line 14' }), {
     shiftKey: true,
   })

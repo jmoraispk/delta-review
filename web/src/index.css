@@ -985,6 +985,16 @@ button.primary-action {
   font-family: var(--mono);
 }
 
+.diff-library .diff-add-widget-wrapper {
+  visibility: visible;
+  opacity: 0.38;
+}
+
+.diff-library .diff-add-widget-wrapper:hover,
+.diff-library .diff-add-widget-wrapper:focus-within {
+  opacity: 1;
+}
+
 .diff-library .diff-multi-select-active {
   box-shadow: inset 3px 0 var(--delta);
 }

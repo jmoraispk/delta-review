@@ -80,6 +80,16 @@ def create_app(
         lifespan=lifespan,
     )
     static_dir = Path(__file__).parent / "static"
+    required_assets = [
+        static_dir / "index.html",
+        static_dir / "favicon.svg",
+        static_dir / "assets",
+    ]
+    if any(not asset.exists() for asset in required_assets):
+        raise RuntimeError(
+            "Delta frontend assets are missing; "
+            "run `npm run build --prefix web`"
+        )
     app.mount(
         "/assets",
         StaticFiles(directory=static_dir / "assets"),
@@ -244,14 +254,23 @@ def create_app(
     async def handle_gitlab_error(
         request: Request, error: GitLabError
     ) -> JSONResponse:
+        message = str(error)
+        if context.token:
+            message = message.replace(context.token, "[redacted]")
         return JSONResponse(
             status_code=error.status_code,
             content={
-                "code": "gitlab_error",
-                "message": str(error),
+                "code": error.code,
+                "message": message,
                 "status": error.status_code,
             },
         )
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def get_spa_fallback(path: str) -> FileResponse:
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API route not found")
+        return FileResponse(static_dir / "index.html")
 
     app.state.context = context
     app.state.require_session = require_session

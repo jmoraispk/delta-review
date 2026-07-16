@@ -8,15 +8,17 @@ import { ErrorState } from '../review/ErrorState'
 import { server } from './server'
 
 test.each([
-  [401, 'Session expired'],
-  [403, 'Access denied'],
-  [404, 'Merge request not found'],
-  [429, 'GitLab rate limit reached'],
-  [503, 'GitLab is unavailable'],
-])('explains HTTP %s failures', (status, heading) => {
+  [401, undefined, 'Session expired'],
+  [401, 'gitlab_authentication_failed', 'GitLab authentication failed'],
+  [403, undefined, 'Access denied'],
+  [404, undefined, 'Merge request not found'],
+  [422, 'diff_truncated', 'Diff is incomplete'],
+  [429, undefined, 'GitLab rate limit reached'],
+  [503, undefined, 'GitLab is unavailable'],
+])('explains HTTP %s failures', (status, code, heading) => {
   render(
     <ErrorState
-      error={new ApiError(status, 'request failed')}
+      error={new ApiError(status, 'request failed', code)}
       onRetry={() => undefined}
     />,
   )

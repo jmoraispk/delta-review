@@ -72,6 +72,45 @@ async def test_falls_back_to_changes_when_diffs_is_unsupported() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_retries_truncated_changes_with_raw_diffs() -> None:
+    base = (
+        "https://old.example/api/v4/projects/group%2Fdelta/"
+        "merge_requests/7"
+    )
+    respx.get(
+        f"{base}/diffs",
+        params={"page": "1", "per_page": "100"},
+    ).mock(return_value=httpx.Response(404, json={"message": "Not Found"}))
+    changes = respx.get(f"{base}/changes").mock(
+        side_effect=[
+            httpx.Response(200, json={"overflow": True, "changes": []}),
+            httpx.Response(
+                200,
+                json={
+                    "overflow": False,
+                    "changes": [
+                        {
+                            "old_path": "complete.py",
+                            "new_path": "complete.py",
+                            "diff": "@@ -1 +1 @@",
+                        }
+                    ],
+                },
+            ),
+        ]
+    )
+    client = GitLabClient("https://old.example/api/v4", "token")
+    try:
+        files = await DiffService(client).get_diffs("group/delta", 7)
+    finally:
+        await client.close()
+    assert changes.call_count == 2
+    assert changes.calls[1].request.url.params["access_raw_diffs"] == "true"
+    assert files[0].new_path == "complete.py"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_get_merge_request_returns_typed_metadata() -> None:
     respx.get(
         "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7"

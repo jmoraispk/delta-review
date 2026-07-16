@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 import socket
+import threading
+import time
+from typing import Any
 import webbrowser
 
 import uvicorn
@@ -22,10 +26,36 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _available_port() -> int:
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        return int(listener.getsockname()[1])
+def _reserve_listener() -> socket.socket:
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    return listener
+
+
+def _run_uvicorn(
+    app: Any,
+    listener: socket.socket,
+    host: str,
+    port: int,
+    on_started: Callable[[], None] | None,
+) -> None:
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port))
+
+    if on_started is not None:
+        def notify_when_started() -> None:
+            while not server.started and not server.should_exit:
+                time.sleep(0.01)
+            if server.started:
+                on_started()
+
+        threading.Thread(
+            target=notify_when_started,
+            name="delta-browser-opener",
+            daemon=True,
+        ).start()
+
+    server.run(sockets=[listener])
 
 
 def run_server(
@@ -39,13 +69,16 @@ def run_server(
         raise ConfigError("Delta must bind to the 127.0.0.1 loopback address")
     context = make_runtime_context(target, cwd)
     app = create_app(context)
-    port = _available_port()
-    url = f"http://{bind_host}:{port}/#session={context.session_secret}"
-    if no_open:
-        print(url)
-    else:
-        webbrowser.open(url)
-    uvicorn.run(app, host=bind_host, port=port)
+    with _reserve_listener() as listener:
+        port = int(listener.getsockname()[1])
+        url = f"http://{bind_host}:{port}/#session={context.session_secret}"
+        on_started: Callable[[], None] | None
+        if no_open:
+            print(url)
+            on_started = None
+        else:
+            on_started = lambda: webbrowser.open(url)
+        _run_uvicorn(app, listener, bind_host, port, on_started)
 
 
 def main() -> None:

@@ -7,9 +7,15 @@ import httpx
 
 
 class GitLabError(RuntimeError):
-    def __init__(self, status_code: int, message: str) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        message: str,
+        code: str = "gitlab_error",
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
+        self.code = code
 
 
 class GitLabClient:
@@ -34,19 +40,57 @@ class GitLabClient:
                 if isinstance(payload, dict)
                 else str(payload)
             )
-        raise GitLabError(response.status_code, str(message))
+        code = {
+            401: "gitlab_authentication_failed",
+            403: "gitlab_access_denied",
+            404: "gitlab_not_found",
+            429: "gitlab_rate_limited",
+        }.get(response.status_code)
+        if code is None and response.status_code >= 500:
+            code = "gitlab_unavailable"
+        raise GitLabError(
+            response.status_code,
+            str(message),
+            code or "gitlab_error",
+        )
 
     async def request(self, method: str, path: str, **kwargs: Any) -> Any:
-        response = await self._client.request(method, path, **kwargs)
+        try:
+            response = await self._client.request(method, path, **kwargs)
+        except httpx.TimeoutException as error:
+            raise GitLabError(
+                504,
+                "GitLab request timed out",
+                "gitlab_timeout",
+            ) from error
+        except httpx.RequestError as error:
+            raise GitLabError(
+                502,
+                "Could not reach GitLab",
+                "gitlab_unavailable",
+            ) from error
         self._raise_for_error(response)
         return response.json()
 
     async def paginate(self, path: str) -> AsyncIterator[dict[str, Any]]:
         page = 1
         while True:
-            response = await self._client.get(
-                path, params={"page": page, "per_page": 100}
-            )
+            try:
+                response = await self._client.get(
+                    path, params={"page": page, "per_page": 100}
+                )
+            except httpx.TimeoutException as error:
+                raise GitLabError(
+                    504,
+                    "GitLab request timed out",
+                    "gitlab_timeout",
+                ) from error
+            except httpx.RequestError as error:
+                raise GitLabError(
+                    502,
+                    "Could not reach GitLab",
+                    "gitlab_unavailable",
+                ) from error
             self._raise_for_error(response)
             values = response.json()
             for value in values:

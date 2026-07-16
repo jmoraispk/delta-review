@@ -171,9 +171,55 @@ async def test_gitlab_errors_are_normalized() -> None:
         )
     assert response.status_code == 404
     assert response.json() == {
-        "code": "gitlab_error",
+        "code": "gitlab_not_found",
         "message": "404 Project Not Found",
         "status": 404,
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_gitlab_auth_errors_are_actionable_and_redacted() -> None:
+    respx.get(
+        "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7"
+    ).mock(
+        return_value=httpx.Response(
+            401,
+            json={"message": "Rejected token secret-token"},
+        )
+    )
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://127.0.0.1"
+    ) as client:
+        response = await client.get(
+            "/api/mr",
+            headers={"X-Delta-Session": "browser-secret"},
+        )
+    assert response.status_code == 401
+    assert response.json()["code"] == "gitlab_authentication_failed"
+    assert "secret-token" not in response.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_gitlab_timeouts_are_normalized() -> None:
+    respx.get(
+        "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7"
+    ).mock(side_effect=httpx.ReadTimeout("GitLab timed out"))
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://127.0.0.1"
+    ) as client:
+        response = await client.get(
+            "/api/mr",
+            headers={"X-Delta-Session": "browser-secret"},
+        )
+    assert response.status_code == 504
+    assert response.json() == {
+        "code": "gitlab_timeout",
+        "message": "GitLab request timed out",
+        "status": 504,
     }
 
 
@@ -271,5 +317,27 @@ async def test_comment_body_must_not_be_blank() -> None:
             "/api/discussions/existing/notes",
             headers={"X-Delta-Session": "browser-secret"},
             json={"body": "   "},
+        )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_inline_comment_coordinates_must_be_valid() -> None:
+    transport = httpx.ASGITransport(app=create_app(context()))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://127.0.0.1"
+    ) as client:
+        response = await client.post(
+            "/api/discussions",
+            headers={"X-Delta-Session": "browser-secret"},
+            json={
+                "body": "Comment",
+                "old_path": "a.py",
+                "new_path": "a.py",
+                "start_old": 4,
+                "start_new": None,
+                "end_old": None,
+                "end_new": 5,
+            },
         )
     assert response.status_code == 422

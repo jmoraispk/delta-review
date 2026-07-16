@@ -52,6 +52,25 @@ class DiscussionService:
             marker += f"-{end}"
         return f"{marker}\n\n{body}"
 
+    @staticmethod
+    def _placement(
+        discussion: dict[str, Any],
+    ) -> Literal["inline", "general"]:
+        notes = discussion.get("notes") or []
+        note_position = notes[0].get("position") if notes else None
+        return "inline" if note_position is not None else "general"
+
+    @staticmethod
+    def _last_line(selection: DiffSelection) -> DiffSelection:
+        return DiffSelection(
+            old_path=selection.old_path,
+            new_path=selection.new_path,
+            start_old=selection.end_old,
+            start_new=selection.end_new,
+            end_old=selection.end_old,
+            end_new=selection.end_new,
+        )
+
     async def create_inline(
         self,
         project: str,
@@ -73,6 +92,28 @@ class DiscussionService:
         except GitLabError as error:
             if error.status_code not in {400, 422}:
                 raise
+            is_multiline = (
+                selection.start_old,
+                selection.start_new,
+            ) != (selection.end_old, selection.end_new)
+            if is_multiline:
+                last_line = self._last_line(selection)
+                try:
+                    discussion = await self._client.request(
+                        "POST",
+                        discussions_path,
+                        json={
+                            "body": body,
+                            "position": build_position(last_line, version),
+                        },
+                    )
+                except GitLabError as retry_error:
+                    if retry_error.status_code not in {400, 422}:
+                        raise
+                else:
+                    return PostingResult(
+                        self._placement(discussion), discussion
+                    )
             discussion = await self._client.request(
                 "POST",
                 discussions_path,
@@ -80,12 +121,7 @@ class DiscussionService:
             )
             return PostingResult("general", discussion)
 
-        notes = discussion.get("notes") or []
-        note_position = notes[0].get("position") if notes else None
-        placement: Literal["inline", "general"] = (
-            "inline" if note_position is not None else "general"
-        )
-        return PostingResult(placement, discussion)
+        return PostingResult(self._placement(discussion), discussion)
 
     async def get_discussions(
         self, project: str, mr_iid: int

@@ -11,6 +11,14 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   })),
 })
 
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   cleanup()

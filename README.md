@@ -28,6 +28,19 @@ glab auth login --hostname gitlab.example.com
 uvx --from delta-review delta https://gitlab.example.com/group/project/-/merge_requests/42
 ```
 
+Until PyPI publishing starts, run from a clone:
+
+```console
+uv sync
+uv run delta https://gitlab.com/group/project/-/merge_requests/42
+```
+
+You can also identify an MR without a URL:
+
+```console
+uv run delta --host gitlab.example.com --project group/project --mr 42
+```
+
 Delta starts a loopback-only server, opens your browser, and uses GitLab as
 the source of truth for comments and resolution state.
 
@@ -51,6 +64,13 @@ for `glab`.
 - `403` or `404`: verify project/MR access with the same `glab` account.
 - `429` or `5xx`: wait for GitLab to recover, then use **Retry**.
 - Collapsed or oversized files: open that file in GitLab for the full diff.
+
+## Current scope
+
+Delta reads text diffs and lets you create, reply to, resolve, and unresolve
+GitLab discussions. If GitLab rejects a multiline position, Delta tries the
+last selected line and then posts a clearly labeled general discussion. It
+does not submit approvals, batch reviews, or render oversized/binary files.
 
 ## Development
 

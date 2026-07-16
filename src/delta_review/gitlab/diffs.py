@@ -38,5 +38,17 @@ class DiffService:
             payload = await self._client.request(
                 "GET", f"{merge_request_path}/changes"
             )
+            if payload.get("overflow"):
+                payload = await self._client.request(
+                    "GET",
+                    f"{merge_request_path}/changes",
+                    params={"access_raw_diffs": "true"},
+                )
+                if payload.get("overflow"):
+                    raise GitLabError(
+                        422,
+                        "GitLab returned a truncated merge request diff",
+                        "diff_truncated",
+                    )
             raw_files = payload.get("changes", [])
         return [DiffFile.model_validate(file) for file in raw_files]

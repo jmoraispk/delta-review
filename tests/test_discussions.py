@@ -2,7 +2,7 @@ import httpx
 import pytest
 import respx
 
-from delta_review.gitlab.client import GitLabClient
+from delta_review.gitlab.client import GitLabClient, GitLabError
 from delta_review.gitlab.discussions import DiscussionService
 from delta_review.gitlab.positions import DiffSelection
 
@@ -21,6 +21,7 @@ VERSION = {
     "head_commit_sha": "head",
 }
 SELECTION = DiffSelection("a.py", "a.py", None, 12, None, 12)
+MULTILINE_SELECTION = DiffSelection("a.py", "a.py", None, 12, None, 14)
 
 
 def discussion(position: dict[str, object] | None) -> dict[str, object]:
@@ -97,6 +98,38 @@ async def test_position_rejection_posts_one_marked_general_fallback() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_multiline_rejection_retries_the_last_line_inline() -> None:
+    respx.get(VERSIONS_URL).mock(
+        return_value=httpx.Response(200, json=[VERSION])
+    )
+    create = respx.post(DISCUSSIONS_URL).mock(
+        side_effect=[
+            httpx.Response(422, json={"message": "position is invalid"}),
+            httpx.Response(
+                201, json=discussion({"new_line": 14})
+            ),
+        ]
+    )
+    client = GitLabClient("https://gitlab.com/api/v4", "token")
+    try:
+        result = await DiscussionService(client).create_inline(
+            "group/delta",
+            7,
+            MULTILINE_SELECTION,
+            "Please rename this.",
+        )
+    finally:
+        await client.close()
+
+    assert result.placement == "inline"
+    assert create.call_count == 2
+    retry_position = create.calls[1].request.content.decode()
+    assert '"new_line":14' in retry_position
+    assert '"line_range"' not in retry_position
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_network_failure_does_not_post_fallback() -> None:
     respx.get(VERSIONS_URL).mock(
         return_value=httpx.Response(200, json=[VERSION])
@@ -106,12 +139,13 @@ async def test_network_failure_does_not_post_fallback() -> None:
     )
     client = GitLabClient("https://gitlab.com/api/v4", "token")
     try:
-        with pytest.raises(httpx.ReadTimeout):
+        with pytest.raises(GitLabError) as captured:
             await DiscussionService(client).create_inline(
                 "group/delta", 7, SELECTION, "Please rename this."
             )
     finally:
         await client.close()
+    assert captured.value.code == "gitlab_timeout"
     assert create.call_count == 1
 
 

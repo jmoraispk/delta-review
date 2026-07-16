@@ -28,7 +28,7 @@ export function synthesizeUnifiedDiff(file: DiffFile): string {
     `diff --git a/${file.old_path} b/${file.new_path}`,
     `--- ${oldHeader}`,
     `+++ ${newHeader}`,
-    file.diff.trimEnd(),
+    file.diff,
   ].join('\n')
 }
 
