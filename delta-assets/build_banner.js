@@ -135,6 +135,10 @@ ${grid}
 `;
 }
 
-const outputPath = path.join(__dirname, "banner.svg");
-fs.writeFileSync(outputPath, svg({ withDots: true }));
-console.log(`wrote ${outputPath}`);
+module.exports = { svg };
+
+if (require.main === module) {
+  const outputPath = path.join(__dirname, "banner.svg");
+  fs.writeFileSync(outputPath, svg({ withDots: true }));
+  console.log(`wrote ${outputPath}`);
+}
