@@ -6,6 +6,7 @@ export default defineConfig({
   build: {
     outDir: '../src/delta_review/static',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1100,
   },
   test: {
     environment: 'jsdom',

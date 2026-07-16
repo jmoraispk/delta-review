@@ -12,6 +12,6 @@ test('renders merge request identity and files', async () => {
   render(<App />, { wrapper: TestProviders })
 
   expect(await screen.findByText('Improve parser errors')).toBeVisible()
-  expect(screen.getAllByText('src/parser.py')[0]).toBeVisible()
+  expect((await screen.findAllByText('src/parser.py'))[0]).toBeVisible()
   expect(screen.getByText('gitlab.example.com')).toBeVisible()
 })

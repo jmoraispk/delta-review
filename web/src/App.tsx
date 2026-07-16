@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { lazy, Suspense, useRef, useState } from 'react'
 
 import { api } from './api/client'
 import type {
@@ -7,15 +8,17 @@ import type {
   Discussion,
   MergeRequest,
 } from './api/types'
+import { FileTree } from './review/FileTree'
 
-function fileStatus(file: DiffFile): string | null {
-  if (file.new_file) return 'new'
-  if (file.deleted_file) return 'deleted'
-  if (file.renamed_file) return 'renamed'
-  return null
-}
+const DiffViewer = lazy(() =>
+  import('./review/DiffViewer').then((module) => ({
+    default: module.DiffViewer,
+  })),
+)
 
 export function App() {
+  const [requestedFileIndex, setRequestedFileIndex] = useState(0)
+  const diffFocusRef = useRef<HTMLElement>(null)
   const config = useQuery({
     queryKey: ['config'],
     queryFn: () => api<DeltaConfig>('/api/config'),
@@ -69,7 +72,11 @@ export function App() {
     )
   }
 
-  const activeFile = diffs.data[0]
+  const activeFileIndex = Math.min(
+    requestedFileIndex,
+    Math.max(0, diffs.data.length - 1),
+  )
+  const activeFile = diffs.data[activeFileIndex]
   const threadCount = discussions.data?.length ?? 0
 
   return (
@@ -103,27 +110,15 @@ export function App() {
               {threadCount}
             </span>
           </div>
-          <nav>
-            {diffs.data.map((file, index) => {
-              const status = fileStatus(file)
-              return (
-                <button
-                  className={`file-row ${index === 0 ? 'is-active' : ''}`}
-                  type="button"
-                  key={`${file.old_path}:${file.new_path}`}
-                >
-                  <span className="file-glyph" aria-hidden="true">
-                    {index === 0 ? '◆' : '◇'}
-                  </span>
-                  <span className="file-path">{file.new_path}</span>
-                  {status ? <span className="file-status">{status}</span> : null}
-                </button>
-              )
-            })}
-          </nav>
+          <FileTree
+            files={diffs.data}
+            activeIndex={activeFileIndex}
+            onSelect={setRequestedFileIndex}
+            onFocusDiff={() => diffFocusRef.current?.focus()}
+          />
         </aside>
 
-        <main className="review-main">
+        <main className="review-main" ref={diffFocusRef} tabIndex={-1}>
           <section className="merge-request-heading">
             <div className="heading-copy">
               <span className="eyebrow">
@@ -133,32 +128,18 @@ export function App() {
               </span>
               <h1>{mergeRequest.data.title}</h1>
             </div>
-            <div className="view-control" aria-label="Diff view">
-              <button className="is-selected" type="button">
-                Unified
-              </button>
-              <button type="button">Split</button>
-            </div>
           </section>
 
           {activeFile ? (
-            <section className="diff-stage" aria-label={activeFile.new_path}>
-              <header className="diff-header">
-                <div>
-                  <span className="language-dot" aria-hidden="true" />
-                  <strong>{activeFile.new_path}</strong>
-                </div>
-                <span>Ready for diff rendering</span>
-              </header>
-              <div className="diff-placeholder" aria-hidden="true">
-                <span className="line-number">41</span>
-                <code>const review = await delta.open()</code>
-                <span className="line-number">42</span>
-                <code className="removed">- waitForGitLab()</code>
-                <span className="line-number">43</span>
-                <code className="added">+ reviewNow()</code>
-              </div>
-            </section>
+            <Suspense
+              fallback={
+                <section className="diff-stage diff-loading">
+                  Preparing diff…
+                </section>
+              }
+            >
+              <DiffViewer file={activeFile} />
+            </Suspense>
           ) : (
             <section className="empty-review">
               <h2>No changed files</h2>
