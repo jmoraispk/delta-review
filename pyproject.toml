@@ -1,0 +1,28 @@
+[project]
+name = "delta-review"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Joao Morais", email = "jmoraispk@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.139.2",
+    "httpx>=0.28.1",
+    "uvicorn[standard]>=0.51.0",
+]
+
+[project.scripts]
+delta = "delta_review.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.11,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+]
