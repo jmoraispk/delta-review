@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from hashlib import sha1
 from typing import Any
@@ -27,14 +28,18 @@ def _line_code(path: str, old: int | None, new: int | None) -> str:
     return f"{digest}_{old or 0}_{new or 0}"
 
 
-def _line_type(old: int | None, new: int | None) -> str:
-    return "new" if new is not None and old is None else "old"
+def _line_type(
+    old: int | None, new: int | None
+) -> str | None:
+    if old is not None and new is not None:
+        return None
+    return "new" if new is not None else "old"
 
 
 def _range_endpoint(
     path: str, old: int | None, new: int | None
-) -> dict[str, str | int]:
-    endpoint: dict[str, str | int] = {
+) -> dict[str, str | int | None]:
+    endpoint: dict[str, str | int | None] = {
         "line_code": _line_code(path, old, new),
         "type": _line_type(old, new),
     }
@@ -74,4 +79,23 @@ def build_position(
                 path, selection.end_old, selection.end_new
             ),
         }
+    return payload
+
+
+def build_legacy_position(
+    selection: DiffSelection, version: Version
+) -> dict[str, Any]:
+    payload = deepcopy(build_position(selection, version))
+    for key in ("old_line", "new_line"):
+        if key in payload and payload[key] is not None:
+            payload[key] = str(payload[key])
+
+    line_range = payload.get("line_range")
+    if not isinstance(line_range, dict):
+        return payload
+    for name in ("start", "end"):
+        endpoint = line_range[name]
+        for key in ("old_line", "new_line"):
+            value = endpoint.get(key)
+            endpoint[key] = None if value is None else str(value)
     return payload
