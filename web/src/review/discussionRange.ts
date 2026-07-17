@@ -1,4 +1,8 @@
-import type { DiffFile, Discussion } from '../api/types'
+import type {
+  DiffFile,
+  Discussion,
+  LineRangeEndpoint,
+} from '../api/types'
 import type { DiffSide } from './selection'
 
 export interface DiscussionRange {
@@ -27,8 +31,11 @@ function belongsToFile(
 
 function lineForSide(
   side: DiffSide,
-  endpoint: { old_line?: number | null; new_line?: number | null },
+  endpoint: LineRangeEndpoint,
 ): number | null {
+  if (endpoint.type !== side && endpoint.type !== null) {
+    return null
+  }
   const line = side === 'new' ? endpoint.new_line : endpoint.old_line
   return typeof line === 'number' ? line : null
 }
@@ -52,14 +59,16 @@ export function discussionRange(
   }
 
   const side: DiffSide = position.new_line != null ? 'new' : 'old'
-  const anchorLine = side === 'new' ? position.new_line : position.old_line
-  if (anchorLine == null) {
+  const topLevelLine =
+    side === 'new' ? position.new_line : position.old_line
+  if (topLevelLine == null) {
     return null
   }
 
   const lineRange = position.line_range
-  let startLine = anchorLine
-  let endLine = anchorLine
+  let startLine = topLevelLine
+  let endLine = topLevelLine
+  let anchorLine = topLevelLine
 
   if (lineRange?.start && lineRange?.end) {
     const startCoord = lineForSide(side, lineRange.start)
@@ -67,6 +76,7 @@ export function discussionRange(
     if (startCoord != null && endCoord != null) {
       startLine = Math.min(startCoord, endCoord)
       endLine = Math.max(startCoord, endCoord)
+      anchorLine = endCoord
     }
   }
 

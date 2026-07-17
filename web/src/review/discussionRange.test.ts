@@ -57,7 +57,7 @@ test('normalizes reverse endpoint order', () => {
         old_path: 'a.py',
         new_path: 'a.py',
         old_line: null,
-        new_line: 247,
+        new_line: 999,
         line_range: {
           start: {
             line_code: 'hash_0_247',
@@ -83,8 +83,49 @@ test('normalizes reverse endpoint order', () => {
     side: 'new',
     startLine: 218,
     endLine: 247,
-    anchorLine: 247,
+    anchorLine: 218,
     label: 'Lines +218–+247',
+  })
+})
+
+test('falls back when endpoint types are incompatible with the chosen side', () => {
+  const mixedSide: Discussion = {
+    id: 'mixed-side',
+    notes: [{
+      id: 1,
+      body: 'Mixed endpoint sides',
+      position: {
+        old_path: 'a.py',
+        new_path: 'a.py',
+        old_line: null,
+        new_line: 247,
+        line_range: {
+          start: {
+            line_code: 'hash_0_218',
+            type: 'new',
+            old_line: null,
+            new_line: 218,
+          },
+          end: {
+            line_code: 'hash_0_247',
+            type: 'old',
+            old_line: null,
+            new_line: 247,
+          },
+        },
+      },
+    }],
+  }
+
+  expect(discussionRange(mixedSide, {
+    old_path: 'a.py',
+    new_path: 'a.py',
+  })).toEqual({
+    side: 'new',
+    startLine: 247,
+    endLine: 247,
+    anchorLine: 247,
+    label: 'Lines +247–+247',
   })
 })
 
