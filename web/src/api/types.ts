@@ -24,11 +24,24 @@ export interface DiffFile {
   too_large: boolean
 }
 
+export interface LineRangeEndpoint {
+  line_code: string
+  type: 'old' | 'new' | null
+  old_line?: number | null
+  new_line?: number | null
+}
+
+export interface NoteLineRange {
+  start: LineRangeEndpoint
+  end: LineRangeEndpoint
+}
+
 export interface NotePosition {
   old_path?: string
   new_path?: string
   old_line?: number | null
   new_line?: number | null
+  line_range?: NoteLineRange | null
 }
 
 export interface DiscussionNote {
