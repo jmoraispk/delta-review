@@ -1274,7 +1274,9 @@ button.primary-action {
   filter: brightness(1.08);
 }
 
-.diff-library .diff-line.delta-discussion-range .diff-line-num {
+.diff-library .diff-line.delta-discussion-range .diff-line-num,
+.diff-library .diff-line.delta-discussion-range .diff-line-old-num,
+.diff-library .diff-line.delta-discussion-range .diff-line-new-num {
   box-shadow: inset 2px 0 rgba(64, 214, 178, 0.45);
 }
 
