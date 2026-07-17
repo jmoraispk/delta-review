@@ -1251,6 +1251,22 @@ button.primary-action {
   box-shadow: inset 3px 0 var(--delta);
 }
 
+.diff-library .diff-line-num [data-line-old-num],
+.diff-library .diff-line-num [data-line-new-num],
+.diff-library .diff-line-old-num [data-line-num],
+.diff-library .diff-line-new-num [data-line-num] {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.diff-library .diff-line.delta-drag-selected .diff-line-num {
+  box-shadow: inset 3px 0 var(--delta);
+}
+
+.diff-library .diff-line.delta-drag-selected .diff-line-content {
+  filter: brightness(1.08);
+}
+
 .selection-draft {
   position: sticky;
   right: 0;

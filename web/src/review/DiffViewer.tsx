@@ -12,12 +12,20 @@ import {
   useRef,
   useState,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 
 import type { DiffFile, Discussion } from '../api/types'
 import { CommentComposer } from './CommentComposer'
 import { toDiffData } from './diffAdapter'
 import { diffStats, diffStatsLabel } from './diffStats'
+import {
+  clearDragHighlight,
+  dragTargetFromElement,
+  findCommentButton,
+  highlightDragRange,
+  type DragLineTarget,
+} from './dragSelection'
 import { DiscussionThread } from './DiscussionThread'
 import {
   extendSelection,
@@ -31,6 +39,13 @@ const MODE_KEY = 'delta-diff-mode'
 
 interface DiffViewerRef {
   getDiffFileInstance: () => ParsedDiffFile | null
+}
+
+interface ActiveDrag {
+  pointerId: number
+  start: DragLineTarget
+  current: DragLineTarget
+  moved: boolean
 }
 
 export interface DiffViewerProps {
@@ -135,6 +150,8 @@ export function DiffViewer({
   const [processedDiff, setProcessedDiff] =
     useState<ParsedDiffFile | null>(null)
   const shiftPressed = useRef(false)
+  const activeDragRef = useRef<ActiveDrag | null>(null)
+  const pendingDragSelectionRef = useRef<SelectionRange | null>(null)
   const diffViewRef = useRef<DiffViewerRef>(null)
   const diffLibraryRef = useRef<HTMLDivElement>(null)
   const widgetCloseRef = useRef<(() => void) | null>(null)
@@ -215,6 +232,11 @@ export function DiffViewer({
   useEffect(() => {
     setSelection(null)
     setShowComments(false)
+    activeDragRef.current = null
+    pendingDragSelectionRef.current = null
+    if (diffLibraryRef.current) {
+      clearDragHighlight(diffLibraryRef.current)
+    }
   }, [file.old_path, file.new_path])
 
   useEffect(() => {
@@ -275,7 +297,7 @@ export function DiffViewer({
 
   function chooseMode(nextMode: 'unified' | 'split') {
     localStorage.setItem(MODE_KEY, nextMode)
-    setSelection(null)
+    closeComposer()
     setMode(nextMode)
   }
 
@@ -300,6 +322,12 @@ export function DiffViewer({
   }
 
   function selectLine(lineNumber: number, side: SplitSide) {
+    const draggedSelection = pendingDragSelectionRef.current
+    if (draggedSelection) {
+      pendingDragSelectionRef.current = null
+      setSelection(draggedSelection)
+      return
+    }
     const point = pointForLine(lineNumber, side)
     const shouldExtend = shiftPressed.current
     setSelection((current) =>
@@ -314,6 +342,7 @@ export function DiffViewer({
   ): SelectionRange {
     return (
       selection ??
+      pendingDragSelectionRef.current ??
       extendSelection(null, pointForLine(lineNumber, side))
     )
   }
@@ -324,8 +353,119 @@ export function DiffViewer({
 
   function closeComposer() {
     setSelection(null)
+    activeDragRef.current = null
+    pendingDragSelectionRef.current = null
+    if (diffLibraryRef.current) {
+      clearDragHighlight(diffLibraryRef.current)
+    }
     widgetCloseRef.current?.()
     widgetCloseRef.current = null
+  }
+
+  function splitSide(target: DragLineTarget): SplitSide {
+    return target.side === 'old' ? SplitSide.old : SplitSide.new
+  }
+
+  function rangeForDrag(
+    start: DragLineTarget,
+    end: DragLineTarget,
+  ): SelectionRange {
+    const initial = extendSelection(
+      null,
+      pointForLine(start.lineNumber, splitSide(start)),
+    )
+    return extendSelection(
+      initial,
+      pointForLine(end.lineNumber, splitSide(end)),
+    )
+  }
+
+  function pointerTarget(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ): DragLineTarget | null {
+    const element = document.elementFromPoint(
+      event.clientX,
+      event.clientY,
+    )
+    return dragTargetFromElement(element ?? (event.target as Element))
+  }
+
+  function beginDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    const target = dragTargetFromElement(event.target as Element)
+    if (!target) return
+
+    closeComposer()
+    activeDragRef.current = {
+      pointerId: event.pointerId,
+      start: target,
+      current: target,
+      moved: false,
+    }
+    highlightDragRange(event.currentTarget, target, target)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    event.preventDefault()
+  }
+
+  function continueDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = activeDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const target = pointerTarget(event)
+    if (!target || target.side !== drag.start.side) return
+
+    drag.current = target
+    drag.moved ||= target.lineNumber !== drag.start.lineNumber
+    highlightDragRange(event.currentTarget, drag.start, target)
+    event.preventDefault()
+  }
+
+  function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = activeDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    activeDragRef.current = null
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    event.preventDefault()
+
+    if (!drag.moved) {
+      clearDragHighlight(event.currentTarget)
+      return
+    }
+
+    const range = rangeForDrag(drag.start, drag.current)
+    const endpoint: DragLineTarget = {
+      lineNumber: Math.max(
+        drag.start.lineNumber,
+        drag.current.lineNumber,
+      ),
+      side: drag.start.side,
+    }
+    pendingDragSelectionRef.current = range
+    setSelection(range)
+
+    requestAnimationFrame(() => {
+      const root = diffLibraryRef.current
+      const button = root && findCommentButton(root, endpoint)
+      if (button) {
+        button.dispatchEvent(
+          new window.MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+          }),
+        )
+        return
+      }
+      pendingDragSelectionRef.current = null
+      setSelection(null)
+      if (root) clearDragHighlight(root)
+    })
+  }
+
+  function cancelDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = activeDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    activeDragRef.current = null
+    clearDragHighlight(event.currentTarget)
   }
 
   function focusPostedDiscussion(discussion: Discussion) {
@@ -433,6 +573,10 @@ export function DiffViewer({
         ref={diffLibraryRef}
         onClickCapture={rememberModifier}
         onMouseDownCapture={rememberModifier}
+        onPointerDownCapture={beginDrag}
+        onPointerMoveCapture={continueDrag}
+        onPointerUpCapture={endDrag}
+        onPointerCancelCapture={cancelDrag}
       >
         <DiffView
           key={`${file.old_path}:${file.new_path}:${mode}:${theme}`}

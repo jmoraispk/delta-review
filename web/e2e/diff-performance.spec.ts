@@ -179,6 +179,61 @@ test('large review stays responsive while rendering and scrolling', async ({
   ).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Unified' }).click()
   await expect(page.locator('.unified-diff-view')).toBeVisible()
+  const dragStart = page.locator('[data-line-new-num="1"]').first()
+  const dragEnd = page.locator('[data-line-new-num="3"]').first()
+  await dragStart.scrollIntoViewIfNeeded()
+  const startBox = await dragStart.boundingBox()
+  const endBox = await dragEnd.boundingBox()
+  if (!startBox || !endBox) {
+    throw new Error('Multiline drag handles are missing')
+  }
+  await page.mouse.move(
+    startBox.x + startBox.width / 2,
+    startBox.y + startBox.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    endBox.x + endBox.width / 2,
+    endBox.y + endBox.height / 2,
+    { steps: 5 },
+  )
+  await page.mouse.up()
+  const rangeComposer = page.locator(
+    '.diff-line-widget .comment-composer',
+  )
+  await expect(rangeComposer).toBeVisible()
+  await expect(rangeComposer.getByText(/lines 1–3/)).toBeVisible()
+  await rangeComposer.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Split' }).click()
+  await expect(page.locator('.split-diff-view')).toBeVisible()
+  const reverseStart = page
+    .locator('.diff-line[data-side="old"] [data-line-num="3"]')
+    .first()
+  const reverseEnd = page
+    .locator('.diff-line[data-side="old"] [data-line-num="1"]')
+    .first()
+  await reverseStart.scrollIntoViewIfNeeded()
+  const reverseStartBox = await reverseStart.boundingBox()
+  const reverseEndBox = await reverseEnd.boundingBox()
+  if (!reverseStartBox || !reverseEndBox) {
+    throw new Error('Reverse multiline drag handles are missing')
+  }
+  await page.mouse.move(
+    reverseStartBox.x + reverseStartBox.width / 2,
+    reverseStartBox.y + reverseStartBox.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    reverseEndBox.x + reverseEndBox.width / 2,
+    reverseEndBox.y + reverseEndBox.height / 2,
+    { steps: 5 },
+  )
+  await page.mouse.up()
+  await expect(rangeComposer).toBeVisible()
+  await expect(rangeComposer.getByText(/lines 1–3/)).toBeVisible()
+  await rangeComposer.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Unified' }).click()
+  await expect(page.locator('.unified-diff-view')).toBeVisible()
 
   const coldOpenMs = await page.evaluate(() => performance.now())
   await page.evaluate(() => {
