@@ -155,6 +155,48 @@ test('keeps review data visible when an update is incomplete', async () => {
   ).toBeVisible()
 })
 
+test('keeps review data visible when a required-query update fails', async () => {
+  let diffCalls = 0
+  server.use(
+    http.get('/api/diffs', () => {
+      diffCalls += 1
+      if (diffCalls === 2) {
+        return HttpResponse.json(
+          { detail: 'Diff service unavailable' },
+          { status: 500 },
+        )
+      }
+      return HttpResponse.json([
+        {
+          old_path: 'src/parser.py',
+          new_path: 'src/parser.py',
+          diff: '@@ -1 +1 @@\n-old\n+new',
+          new_file: false,
+          renamed_file: false,
+          deleted_file: false,
+          collapsed: false,
+          too_large: false,
+        },
+      ])
+    }),
+  )
+
+  render(<App />, { wrapper: TestProviders })
+
+  expect(
+    await screen.findByRole('region', { name: 'src/parser.py' }),
+  ).toBeVisible()
+
+  screen.getByRole('button', { name: 'Update' }).click()
+
+  expect(
+    await screen.findByText('Review could not be fully updated.'),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('region', { name: 'src/parser.py' }),
+  ).toBeVisible()
+})
+
 test('renders code without waiting for discussions', async () => {
   server.use(
     http.get('/api/discussions', async () => {

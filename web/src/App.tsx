@@ -73,7 +73,9 @@ export function App() {
   )
 
   const requiredQueries = [config, mergeRequest, diffs]
-  const error = requiredQueries.find((query) => query.error)?.error
+  const error = requiredQueries.find(
+    (query) => query.error && query.data === undefined,
+  )?.error
   const isPending = requiredQueries.some((query) => query.isPending)
 
   if (error) {
