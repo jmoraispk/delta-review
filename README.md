@@ -24,30 +24,48 @@ Requires [uv](https://docs.astral.sh/uv/) and an authenticated
 [glab](https://gitlab.com/gitlab-org/cli) installation.
 
 <details>
-<summary>Install and authenticate glab on Windows</summary>
+<summary>Install and authenticate glab</summary>
+
+### Windows
 
 ```powershell
-winget install GLab.GLab
+winget install glab.glab
+```
+
+Restart PowerShell after installing.
+
+### macOS
+
+```console
+brew install glab
+```
+
+### Linux
+
+Homebrew is the officially supported package manager:
+
+```console
+brew install glab
+```
+
+Alternatively, install the community-maintained Snap package:
+
+```console
+sudo snap install glab
+```
+
+Then authenticate with your GitLab instance:
+
+```console
 glab auth login --hostname gitlab.example.com
 glab auth status --hostname gitlab.example.com
 ```
-
-Restart PowerShell after installing `glab`.
 
 </details>
 
 ```console
 uvx delta-review https://gitlab.com/group/project/-/merge_requests/42
 ```
-
-## Troubleshooting
-
-- Authentication errors: run `glab auth status` for the target hostname.
-- `403` or `404`: verify project/MR access with the same `glab` account.
-- `429`: wait briefly, then use **Retry**.
-- `5xx`: GitLab rejected an upstream API request. Check the MR metadata,
-  diffs, and discussions endpoints with `glab api` to identify which failed.
-- Collapsed or oversized files: open that file in GitLab for the full diff.
 
 ## Current scope
 
@@ -67,9 +85,7 @@ npm test --prefix web -- --run
 npm run build --prefix web
 ```
 
-## Architecture
-
-- [Architecture slides](./assets/how-delta-works.pptx)
+---
 
 Contributions are welcome through
 [issues](https://github.com/jmoraispk/delta-review/issues) and pull requests.
