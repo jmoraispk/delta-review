@@ -839,6 +839,13 @@ a:focus-visible {
   font-weight: 650;
 }
 
+.discussion-range-label {
+  margin-left: auto;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
 .resolution-state {
   color: var(--warning);
   font-family: var(--mono);
@@ -1265,6 +1272,10 @@ button.primary-action {
 
 .diff-library .diff-line.delta-drag-selected .diff-line-content {
   filter: brightness(1.08);
+}
+
+.diff-library .diff-line.delta-discussion-range .diff-line-num {
+  box-shadow: inset 2px 0 rgba(64, 214, 178, 0.45);
 }
 
 .selection-draft {

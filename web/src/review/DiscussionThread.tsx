@@ -13,6 +13,7 @@ const rehypePlugins = [rehypeRaw, rehypeSanitize]
 
 interface DiscussionThreadProps {
   discussion: Discussion
+  rangeLabel?: string
 }
 
 function updateCachedDiscussion(
@@ -27,6 +28,7 @@ function updateCachedDiscussion(
 
 export function DiscussionThread({
   discussion,
+  rangeLabel,
 }: DiscussionThreadProps) {
   const queryClient = useQueryClient()
   const [current, setCurrent] = useState(discussion)
@@ -142,6 +144,9 @@ export function DiscussionThread({
         <span className="thread-author">
           {current.notes[0]?.author?.name ?? 'GitLab reviewer'}
         </span>
+        {rangeLabel ? (
+          <span className="discussion-range-label">{rangeLabel}</span>
+        ) : null}
         {resolvableNote ? (
           <span
             className={`resolution-state ${isResolved ? 'is-resolved' : ''}`}

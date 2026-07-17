@@ -73,14 +73,11 @@ vi.mock('@git-diff-view/react', async (importOriginal) => {
           >
             Comment line 14
           </button>
-          {[
-            ...Object.values(extendData?.oldFile ?? {}),
-            ...Object.values(extendData?.newFile ?? {}),
-          ].map((bucket, index) => (
-            <div key={index}>
-              {renderExtendLine?.({ data: bucket.data })}
+          {extendData?.newFile?.['14'] ? (
+            <div>
+              {renderExtendLine?.({ data: extendData.newFile['14'].data })}
             </div>
-          ))}
+          ) : null}
           {diffViewMode === 3 ? (
             <div data-testid="empty-split-extension">
               {renderExtendLine?.({ data: undefined })}
@@ -219,11 +216,25 @@ test('shows code first and reveals only inline comments on request', async () =>
       notes: [
         {
           id: 1,
-          body: 'Inline feedback',
+          body: 'Range feedback',
           position: {
             old_path: FILE.old_path,
             new_path: FILE.new_path,
             new_line: 12,
+            line_range: {
+              start: {
+                line_code: 'hash_0_12',
+                type: 'new',
+                old_line: null,
+                new_line: 12,
+              },
+              end: {
+                line_code: 'hash_0_14',
+                type: 'new',
+                old_line: null,
+                new_line: 14,
+              },
+            },
           },
         },
       ],
@@ -242,14 +253,15 @@ test('shows code first and reveals only inline comments on request', async () =>
   expect(
     within(diff).queryByRole('button', { name: 'Split' }),
   ).not.toBeInTheDocument()
-  expect(screen.queryByText('Inline feedback')).not.toBeInTheDocument()
+  expect(screen.queryByText('Range feedback')).not.toBeInTheDocument()
   expect(screen.queryByText('General feedback')).not.toBeInTheDocument()
 
   await user.click(
     screen.getByRole('button', { name: 'Show inline comments (1)' }),
   )
 
-  expect(screen.getByText('Inline feedback')).toBeVisible()
+  expect(screen.getByText('Lines +12–+14')).toBeVisible()
+  expect(screen.getByText('Range feedback')).toBeVisible()
   expect(screen.queryByText('General feedback')).not.toBeInTheDocument()
 })
 

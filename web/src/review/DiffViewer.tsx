@@ -28,6 +28,11 @@ import {
 } from './dragSelection'
 import { DiscussionThread } from './DiscussionThread'
 import {
+  discussionRange,
+  highlightDiscussionRanges,
+  type DiscussionRange,
+} from './discussionRange'
+import {
   extendSelection,
   toBackendSelection,
   type DiffSide,
@@ -61,39 +66,34 @@ function preferredTheme(): 'light' | 'dark' {
     : 'dark'
 }
 
-function discussionPosition(discussion: Discussion) {
-  return discussion.notes.find((note) => note.position)?.position ?? null
+interface PositionedDiscussion {
+  discussion: Discussion
+  range: DiscussionRange
 }
-
 interface DiscussionExtensionData {
-  oldFile: Record<string, { data: Discussion[] }>
-  newFile: Record<string, { data: Discussion[] }>
+  oldFile: Record<string, { data: PositionedDiscussion[] }>
+  newFile: Record<string, { data: PositionedDiscussion[] }>
 }
 
 function groupDiscussions(file: DiffFile, discussions: Discussion[]) {
-  const oldFile: Record<string, { data: Discussion[] }> = {}
-  const newFile: Record<string, { data: Discussion[] }> = {}
+  const oldFile: Record<string, { data: PositionedDiscussion[] }> = {}
+  const newFile: Record<string, { data: PositionedDiscussion[] }> = {}
+  const ranges: DiscussionRange[] = []
   let inlineCount = 0
 
   for (const discussion of discussions) {
-    const position = discussionPosition(discussion)
-    if (!position) continue
-    const belongsToFile =
-      position.new_path === file.new_path ||
-      position.old_path === file.old_path
-    if (!belongsToFile) continue
-
-    const side = position.new_line != null ? newFile : oldFile
-    const lineNumber = position.new_line ?? position.old_line
-    if (lineNumber == null) continue
-    const key = String(lineNumber)
+    const range = discussionRange(discussion, file)
+    if (!range) continue
+    const side = range.side === 'new' ? newFile : oldFile
+    const key = String(range.anchorLine)
     side[key] = {
-      data: [...(side[key]?.data ?? []), discussion],
+      data: [...(side[key]?.data ?? []), { discussion, range }],
     }
+    ranges.push(range)
     inlineCount += 1
   }
 
-  return { extendData: { oldFile, newFile }, inlineCount }
+  return { extendData: { oldFile, newFile }, inlineCount, ranges }
 }
 
 function WidgetCloseCapture({
@@ -161,7 +161,7 @@ export function DiffViewer({
     },
     [],
   )
-  const { extendData, inlineCount } = useMemo(
+  const { extendData, inlineCount, ranges } = useMemo(
     () => groupDiscussions(file, discussions),
     [discussions, file],
   )
@@ -254,6 +254,16 @@ export function DiffViewer({
   useEffect(() => {
     onSelectionChange?.(selection)
   }, [onSelectionChange, selection])
+
+  useEffect(() => {
+    const root = diffLibraryRef.current
+    if (!showComments || !root) return
+
+    return highlightDiscussionRanges(
+      root,
+      ranges.filter((range) => range.startLine !== range.endLine),
+    )
+  }, [mode, processedDiff, ranges, showComments])
 
   useEffect(() => {
     const root = diffLibraryRef.current
@@ -609,10 +619,15 @@ export function DiffViewer({
           )}
           renderExtendLine={({ data = [] }) => (
             <div className="line-discussions">
-              {data.map((discussion) => (
+              {data.map(({ discussion, range }) => (
                 <DiscussionThread
                   discussion={discussion}
                   key={discussion.id}
+                  rangeLabel={
+                    range.startLine !== range.endLine
+                      ? range.label
+                      : undefined
+                  }
                 />
               ))}
             </div>
