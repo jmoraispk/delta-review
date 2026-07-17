@@ -117,6 +117,32 @@ test('renders GitLab-flavored Markdown without exposing HTML comments', () => {
   expect(screen.queryByText(/internal metadata/)).not.toBeInTheDocument()
 })
 
+test('renders a reviewer mark for every automated note', () => {
+  render(
+    <DiscussionThread
+      discussion={{
+        ...discussion,
+        notes: [
+          {
+            ...discussion.notes[0],
+            author: { name: 'CodeRabbit', username: 'opaque-coderabbit' },
+          },
+          {
+            id: 2,
+            body: 'Please also update the test.',
+            author: { name: 'Greptile', username: 'opaque-greptile' },
+          },
+        ],
+      }}
+    />,
+    { wrapper: TestProviders },
+  )
+
+  expect(screen.getByAltText('CodeRabbit')).toBeVisible()
+  expect(screen.getByAltText('Greptile')).toBeVisible()
+  expect(screen.getByText('Greptile')).toBeVisible()
+})
+
 test('keeps the POSTed discussion in the cache without refetching', async () => {
   const existing: Discussion = { id: 'existing', notes: [] }
   const posted: Discussion = { id: 'posted', notes: [] }

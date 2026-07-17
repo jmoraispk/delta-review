@@ -924,6 +924,13 @@ a:focus-visible {
   font-size: 9px;
 }
 
+.reviewer-mark {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
 .thread-note strong {
   display: block;
   margin-bottom: 3px;

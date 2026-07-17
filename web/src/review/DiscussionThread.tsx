@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 
 import { api } from '../api/client'
 import type { Discussion, DiscussionNote } from '../api/types'
+import { ReviewerMark } from './ReviewerMark'
 
 const remarkPlugins = [remarkGfm]
 const rehypePlugins = [rehypeRaw, rehypeSanitize]
@@ -159,9 +160,7 @@ export function DiscussionThread({
       <div className="thread-notes">
         {current.notes.map((note) => (
           <div className="thread-note" key={note.id}>
-            <span className="author-initial" aria-hidden="true">
-              {(note.author?.name ?? '?').slice(0, 1).toUpperCase()}
-            </span>
+            <ReviewerMark author={note.author} />
             <div>
               {note !== current.notes[0] ? (
                 <strong>{note.author?.name ?? 'Reviewer'}</strong>
