@@ -38,18 +38,25 @@ export function App() {
   })
   const mergeRequest = useQuery({
     queryKey: ['merge-request'],
-    queryFn: () => api<MergeRequest>('/api/mr'),
+    queryFn: ({ signal }) => api<MergeRequest>('/api/mr', { signal }),
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const diffs = useQuery({
     queryKey: ['diffs'],
-    queryFn: () => api<DiffFile[]>('/api/diffs'),
+    queryFn: ({ signal }) => api<DiffFile[]>('/api/diffs', { signal }),
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const discussions = useQuery({
     queryKey: ['discussions'],
-    queryFn: () => api<Discussion[]>('/api/discussions'),
+    queryFn: ({ signal }) =>
+      api<Discussion[]>('/api/discussions', { signal }),
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const totalChanges = useMemo(
     () =>
@@ -187,7 +194,10 @@ export function App() {
           <FileTree
             files={diffs.data}
             activeIndex={activeFileIndex}
-            onSelect={setRequestedFileIndex}
+            onSelect={(index) => {
+              if (index !== activeFileIndex) setUpdateState('idle')
+              setRequestedFileIndex(index)
+            }}
             onFocusDiff={() => diffFocusRef.current?.focus()}
           />
         </aside>

@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { focusManager, onlineManager } from '@tanstack/react-query'
 import { delay, http, HttpResponse } from 'msw'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import App from '../App'
@@ -19,6 +21,45 @@ test('renders merge request identity and files', async () => {
   expect(
     screen.getByLabelText('Total changes: 1 addition, 1 deletion'),
   ).toBeVisible()
+})
+
+test('does not refetch review data on focus or reconnect', async () => {
+  const calls = { mr: 0, diffs: 0, discussions: 0 }
+  server.use(
+    http.get('/api/mr', () => {
+      calls.mr += 1
+      return HttpResponse.json({
+        iid: 42,
+        title: 'Improve parser errors',
+        web_url:
+          'https://gitlab.example.com/platform/delta-review/-/merge_requests/42',
+        state: 'opened',
+        source_branch: 'parser-errors',
+        target_branch: 'main',
+      })
+    }),
+    http.get('/api/diffs', () => {
+      calls.diffs += 1
+      return HttpResponse.json([])
+    }),
+    http.get('/api/discussions', () => {
+      calls.discussions += 1
+      return HttpResponse.json([])
+    }),
+  )
+
+  render(<App />, { wrapper: TestProviders })
+
+  await screen.findByText('Improve parser errors')
+  expect(calls).toEqual({ mr: 1, diffs: 1, discussions: 1 })
+
+  focusManager.setFocused(false)
+  focusManager.setFocused(true)
+  onlineManager.setOnline(false)
+  onlineManager.setOnline(true)
+
+  await new Promise((resolve) => window.setTimeout(resolve, 25))
+  expect(calls).toEqual({ mr: 1, diffs: 1, discussions: 1 })
 })
 
 test('links to the merge request in GitLab', async () => {
@@ -195,6 +236,46 @@ test('keeps review data visible when a required-query update fails', async () =>
   expect(
     screen.getByRole('region', { name: 'src/parser.py' }),
   ).toBeVisible()
+})
+
+test('clears the Update status when selecting another file', async () => {
+  const files = [
+    {
+      old_path: 'src/parser.py',
+      new_path: 'src/parser.py',
+      diff: '@@ -1 +1 @@\n-old\n+new',
+      new_file: false,
+      renamed_file: false,
+      deleted_file: false,
+      collapsed: false,
+      too_large: false,
+    },
+    {
+      old_path: 'src/other.py',
+      new_path: 'src/other.py',
+      diff: '@@ -1 +1 @@\n-old\n+new',
+      new_file: false,
+      renamed_file: false,
+      deleted_file: false,
+      collapsed: false,
+      too_large: false,
+    },
+  ]
+  server.use(http.get('/api/diffs', () => HttpResponse.json(files)))
+
+  render(<App />, { wrapper: TestProviders })
+
+  await screen.findByRole('region', { name: 'src/parser.py' })
+  await userEvent.click(screen.getByRole('button', { name: 'Update' }))
+  expect(await screen.findByText('Review updated.')).toBeVisible()
+
+  fireEvent.keyDown(
+    screen.getByRole('button', { name: /src\/parser.py/ }),
+    { key: 'ArrowDown' },
+  )
+  await screen.findByRole('region', { name: 'src/other.py' })
+
+  expect(screen.queryByText('Review updated.')).not.toBeInTheDocument()
 })
 
 test('renders code without waiting for discussions', async () => {

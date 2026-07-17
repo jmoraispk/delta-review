@@ -177,6 +177,60 @@ test('falls back to the top-level line when the range is malformed', () => {
   })
 })
 
+test.each([0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+  'falls back to the valid top-level line for invalid endpoint coordinate %s',
+  (invalidLine) => {
+    const invalidEndpoint: Discussion = {
+      ...rangedDiscussion,
+      notes: [{
+        ...rangedDiscussion.notes[0],
+        position: {
+          ...rangedDiscussion.notes[0].position!,
+          line_range: {
+            ...rangedDiscussion.notes[0].position!.line_range!,
+            start: {
+              ...rangedDiscussion.notes[0].position!.line_range!.start,
+              new_line: invalidLine,
+            },
+          },
+        },
+      }],
+    }
+
+    expect(discussionRange(invalidEndpoint, {
+      old_path: 'a.py',
+      new_path: 'a.py',
+    })).toEqual({
+      side: 'new',
+      startLine: 247,
+      endLine: 247,
+      anchorLine: 247,
+      label: 'Lines +247–+247',
+    })
+  },
+)
+
+test.each([0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+  'rejects invalid top-level anchor %s',
+  (invalidLine) => {
+    const invalidAnchor: Discussion = {
+      ...rangedDiscussion,
+      notes: [{
+        ...rangedDiscussion.notes[0],
+        position: {
+          ...rangedDiscussion.notes[0].position!,
+          new_line: invalidLine,
+        },
+      }],
+    }
+
+    expect(discussionRange(invalidAnchor, {
+      old_path: 'a.py',
+      new_path: 'a.py',
+    })).toBeNull()
+  },
+)
+
 test('formats old-side range labels', () => {
   const oldSide: Discussion = {
     id: 'old',

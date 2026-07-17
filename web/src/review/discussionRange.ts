@@ -37,7 +37,9 @@ function lineForSide(
     return null
   }
   const line = side === 'new' ? endpoint.new_line : endpoint.old_line
-  return typeof line === 'number' ? line : null
+  return typeof line === 'number' && Number.isSafeInteger(line) && line > 0
+    ? line
+    : null
 }
 
 function formatRangeLabel(
@@ -61,7 +63,11 @@ export function discussionRange(
   const side: DiffSide = position.new_line != null ? 'new' : 'old'
   const topLevelLine =
     side === 'new' ? position.new_line : position.old_line
-  if (topLevelLine == null) {
+  if (
+    typeof topLevelLine !== 'number' ||
+    !Number.isSafeInteger(topLevelLine) ||
+    topLevelLine <= 0
+  ) {
     return null
   }
 

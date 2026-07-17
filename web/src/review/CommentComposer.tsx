@@ -30,8 +30,12 @@ export function CommentComposer({
         method: 'POST',
         body: JSON.stringify({ ...selection, body }),
       }),
-    onSuccess: (result) => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['discussions'] })
+    },
+    onSuccess: async (result) => {
       setDraft('')
+      await queryClient.cancelQueries({ queryKey: ['discussions'] })
       queryClient.setQueryData<Discussion[]>(
         ['discussions'],
         (values = []) => {

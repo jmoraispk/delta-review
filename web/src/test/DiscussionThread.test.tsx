@@ -9,6 +9,7 @@ import { http, HttpResponse } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
 import type { Discussion, PostingResult } from '../api/types'
+import { api } from '../api/client'
 import { CommentComposer } from '../review/CommentComposer'
 import { DiscussionThread } from '../review/DiscussionThread'
 import type { BackendSelection } from '../review/selection'
@@ -55,6 +56,15 @@ function DiscussionCacheObserver() {
       return response.json() as Promise<Discussion[]>
     },
     staleTime: Infinity,
+  })
+  return null
+}
+
+function DelayedDiscussionCacheObserver() {
+  useQuery({
+    queryKey: ['discussions'],
+    queryFn: ({ signal }) =>
+      api<Discussion[]>('/api/discussions', { signal }),
   })
   return null
 }
@@ -227,6 +237,59 @@ test('replaces an equal-ID discussion with the authoritative POST result', async
       posted,
     ]),
   )
+})
+
+test('keeps the POSTed discussion when a startup fetch resolves afterward', async () => {
+  const posted: Discussion = { id: 'posted', notes: [] }
+  let startGet!: () => void
+  let resolveGet!: (value: Discussion[]) => void
+  const getStarted = new Promise<void>((resolve) => {
+    startGet = resolve
+  })
+  const delayedGet = new Promise<Discussion[]>((resolve) => {
+    resolveGet = resolve
+  })
+  server.use(
+    http.get('/api/discussions', async () => {
+      startGet()
+      return HttpResponse.json(await delayedGet)
+    }),
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        {
+          placement: 'inline',
+          fallback: 'none',
+          discussion: posted,
+        } satisfies PostingResult,
+        { status: 201 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <DelayedDiscussionCacheObserver />
+      <CommentComposer selection={selection} />
+    </QueryClientProvider>,
+  )
+
+  await getStarted
+  await user.type(screen.getByLabelText('Comment'), 'Keep this comment.')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      posted,
+    ]),
+  )
+
+  resolveGet([])
+  await new Promise((resolve) => window.setTimeout(resolve, 25))
+  expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+    posted,
+  ])
 })
 
 test('keeps the comment draft when posting fails', async () => {
