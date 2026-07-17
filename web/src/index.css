@@ -458,6 +458,8 @@ a:focus-visible {
   gap: 8px;
 }
 
+.gitlab-link,
+.review-update,
 .mr-discussions-toggle,
 .discussion-load-error,
 .mr-discussions-panel header > button {
@@ -468,6 +470,18 @@ a:focus-visible {
   background: var(--panel);
   color: var(--muted);
   cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.review-update:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.update-status {
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
 }

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
@@ -18,6 +18,140 @@ test('renders merge request identity and files', async () => {
   expect(screen.getByText('gitlab.example.com')).toBeVisible()
   expect(
     screen.getByLabelText('Total changes: 1 addition, 1 deletion'),
+  ).toBeVisible()
+})
+
+test('links to the merge request in GitLab', async () => {
+  render(<App />, { wrapper: TestProviders })
+
+  expect(
+    await screen.findByRole('link', { name: 'Open in GitLab' }),
+  ).toHaveAttribute(
+    'href',
+    'https://gitlab.example.com/platform/delta-review/-/merge_requests/42',
+  )
+  expect(screen.getByRole('link', { name: 'Open in GitLab' })).toHaveAttribute(
+    'target',
+    '_blank',
+  )
+})
+
+test('updates all review data and retains the active file after reordering', async () => {
+  const calls = { mr: 0, diffs: 0, discussions: 0 }
+  const parser = {
+    old_path: 'src/parser.py',
+    new_path: 'src/parser.py',
+    diff: '@@ -1 +1 @@\n-old\n+new',
+    new_file: false,
+    renamed_file: false,
+    deleted_file: false,
+    collapsed: false,
+    too_large: false,
+  }
+  const other = {
+    old_path: 'src/other.py',
+    new_path: 'src/other.py',
+    diff: '@@ -1 +1 @@\n-old-other\n+new-other',
+    new_file: false,
+    renamed_file: false,
+    deleted_file: false,
+    collapsed: false,
+    too_large: false,
+  }
+
+  server.use(
+    http.get('/api/mr', async () => {
+      calls.mr += 1
+      if (calls.mr > 1) await delay(10)
+      return HttpResponse.json({
+        iid: 42,
+        title: 'Improve parser errors',
+        web_url:
+          'https://gitlab.example.com/platform/delta-review/-/merge_requests/42',
+        state: 'opened',
+        source_branch: 'parser-errors',
+        target_branch: 'main',
+      })
+    }),
+    http.get('/api/diffs', () => {
+      calls.diffs += 1
+      return HttpResponse.json(calls.diffs === 1 ? [parser, other] : [other, parser])
+    }),
+    http.get('/api/discussions', () => {
+      calls.discussions += 1
+      return HttpResponse.json([])
+    }),
+  )
+
+  render(<App />, { wrapper: TestProviders })
+
+  expect(
+    await screen.findByRole(
+      'region',
+      { name: 'src/parser.py' },
+      { timeout: 5_000 },
+    ),
+  ).toBeVisible()
+  fireEvent.keyDown(
+    screen.getByRole('button', { name: /src\/parser.py/ }),
+    { key: 'ArrowDown' },
+  )
+  expect(
+    await screen.findByRole(
+      'region',
+      { name: 'src/other.py' },
+      { timeout: 5_000 },
+    ),
+  ).toBeVisible()
+  expect(calls).toEqual({ mr: 1, diffs: 1, discussions: 1 })
+
+  screen.getByRole('button', { name: 'Update' }).click()
+
+  expect(
+    await screen.findByRole('button', { name: 'Updating…' }),
+  ).toBeDisabled()
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled(),
+  )
+  expect(calls).toEqual({ mr: 2, diffs: 2, discussions: 2 })
+  await waitFor(
+    () =>
+      expect(
+        screen.getByRole('region', { name: 'src/other.py' }),
+      ).toBeVisible(),
+    { timeout: 5_000 },
+  )
+  expect(await screen.findByText('Review updated.')).toBeVisible()
+})
+
+test('keeps review data visible when an update is incomplete', async () => {
+  let discussionCalls = 0
+  server.use(
+    http.get('/api/discussions', () => {
+      discussionCalls += 1
+      if (discussionCalls === 2) {
+        return HttpResponse.json(
+          { detail: 'Discussion service unavailable' },
+          { status: 500 },
+        )
+      }
+      return HttpResponse.json([])
+    }),
+  )
+
+  render(<App />, { wrapper: TestProviders })
+
+  expect(
+    await screen.findByRole('region', { name: 'src/parser.py' }),
+  ).toBeVisible()
+
+  screen.getByRole('button', { name: 'Update' }).click()
+
+  expect(
+    await screen.findByText('Review could not be fully updated.'),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('region', { name: 'src/parser.py' }),
   ).toBeVisible()
 })
 

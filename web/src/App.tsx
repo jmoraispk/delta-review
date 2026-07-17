@@ -23,10 +23,13 @@ const GeneralDiscussionsPanel = lazy(() =>
   })),
 )
 
+type UpdateState = 'idle' | 'updating' | 'success' | 'error'
+
 export function App() {
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
   const [showGeneralDiscussions, setShowGeneralDiscussions] =
     useState(false)
+  const [updateState, setUpdateState] = useState<UpdateState>('idle')
   const diffFocusRef = useRef<HTMLElement>(null)
   const config = useQuery({
     queryKey: ['config'],
@@ -102,6 +105,41 @@ export function App() {
   const activeFile = diffs.data[activeFileIndex]
   const threadCount = discussions.data?.length ?? 0
 
+  async function updateReview() {
+    const activeFilePath = activeFile?.new_path ?? activeFile?.old_path
+    setUpdateState('updating')
+
+    try {
+      const [mergeRequestResult, diffsResult, discussionsResult] =
+        await Promise.all([
+          mergeRequest.refetch(),
+          diffs.refetch(),
+          discussions.refetch(),
+        ])
+      const refreshedFileIndex = activeFilePath
+        ? diffsResult.data?.findIndex(
+            (file) =>
+              file.new_path === activeFilePath ||
+              file.old_path === activeFilePath,
+          )
+        : undefined
+
+      if (refreshedFileIndex !== undefined && refreshedFileIndex >= 0) {
+        setRequestedFileIndex(refreshedFileIndex)
+      }
+
+      setUpdateState(
+        [mergeRequestResult, diffsResult, discussionsResult].some(
+          (result) => result.error,
+        )
+          ? 'error'
+          : 'success',
+      )
+    } catch {
+      setUpdateState('error')
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -163,6 +201,22 @@ export function App() {
               <h1>{mergeRequest.data.title}</h1>
             </div>
             <div className="heading-actions">
+              <a
+                className="gitlab-link"
+                href={mergeRequest.data.web_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open in GitLab <span aria-hidden="true">↗</span>
+              </a>
+              <button
+                className="review-update"
+                disabled={updateState === 'updating'}
+                type="button"
+                onClick={() => void updateReview()}
+              >
+                {updateState === 'updating' ? 'Updating…' : 'Update'}
+              </button>
               {generalDiscussions.length > 0 ? (
                 <button
                   className="mr-discussions-toggle"
@@ -184,6 +238,16 @@ export function App() {
                 >
                   Comments unavailable · Retry
                 </button>
+              ) : null}
+              {updateState === 'success' ? (
+                <span className="update-status" aria-live="polite">
+                  Review updated.
+                </span>
+              ) : null}
+              {updateState === 'error' ? (
+                <span className="update-status" aria-live="polite">
+                  Review could not be fully updated.
+                </span>
               ) : null}
             </div>
           </section>
