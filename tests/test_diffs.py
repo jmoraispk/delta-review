@@ -72,6 +72,45 @@ async def test_falls_back_to_changes_when_diffs_is_unsupported() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_falls_back_to_changes_when_diffs_returns_server_error() -> None:
+    base = (
+        "https://gitlab.example.com/api/v4/projects/group%2Fdelta/"
+        "merge_requests/7"
+    )
+    respx.get(
+        f"{base}/diffs",
+        params={"page": "1", "per_page": "100"},
+    ).mock(
+        return_value=httpx.Response(
+            500, json={"message": "Internal Server Error"}
+        )
+    )
+    changes = respx.get(f"{base}/changes").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "changes": [
+                    {
+                        "old_path": "a.py",
+                        "new_path": "a.py",
+                        "diff": "@@ -1 +1 @@",
+                    }
+                ]
+            },
+        )
+    )
+    client = GitLabClient("https://gitlab.example.com/api/v4", "token")
+    try:
+        files = await DiffService(client).get_diffs("group/delta", 7)
+    finally:
+        await client.close()
+
+    assert changes.called
+    assert files[0].new_path == "a.py"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_retries_truncated_changes_with_raw_diffs() -> None:
     base = (
         "https://old.example/api/v4/projects/group%2Fdelta/"

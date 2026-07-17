@@ -17,7 +17,7 @@ from delta_review.security import make_runtime_context
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="delta")
+    parser = argparse.ArgumentParser(prog="delta-review")
     parser.add_argument("mr_url", nargs="?")
     parser.add_argument("--host")
     parser.add_argument("--project")

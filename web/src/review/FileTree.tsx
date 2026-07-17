@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useRef, type KeyboardEvent } from 'react'
 
 import type { DiffFile } from '../api/types'
+import { diffStats, diffStatsLabel } from './diffStats'
 
 interface FileTreeProps {
   files: DiffFile[]
@@ -29,7 +30,7 @@ export function FileTree({
   const virtualizer = useVirtualizer({
     count: files.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 32,
+    estimateSize: () => 36,
     overscan: 10,
     initialRect: { width: 280, height: 400 },
   })
@@ -41,8 +42,8 @@ export function FileTree({
           {
             index: activeIndex,
             key: activeIndex,
-            start: activeIndex * 32,
-            size: 32,
+            start: activeIndex * 36,
+            size: 36,
           },
         ]
 
@@ -83,6 +84,7 @@ export function FileTree({
         {renderedRows.map((virtualRow) => {
           const file = files[virtualRow.index]
           const status = fileStatus(file)
+          const stats = diffStats(file.diff)
           const isActive = virtualRow.index === activeIndex
           return (
             <button
@@ -102,7 +104,22 @@ export function FileTree({
                 {isActive ? '◆' : '◇'}
               </span>
               <span className="file-path">{file.new_path}</span>
-              {status ? <span className="file-status">{status}</span> : null}
+              <span className="file-row-meta">
+                {status ? (
+                  <span className="file-status">{status}</span>
+                ) : null}
+                <span
+                  className="file-diff-stats"
+                  aria-label={diffStatsLabel(stats)}
+                >
+                  <span className="stat-addition" aria-hidden="true">
+                    +{stats.additions}
+                  </span>
+                  <span className="stat-deletion" aria-hidden="true">
+                    −{stats.deletions}
+                  </span>
+                </span>
+              </span>
             </button>
           )
         })}

@@ -1,4 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   forwardRef,
@@ -19,17 +24,19 @@ vi.mock('@git-diff-view/react', async (importOriginal) => {
     (
       {
         onAddWidgetClick,
+        diffViewMode,
         extendData,
         renderExtendLine,
         renderWidgetLine,
       }: {
         onAddWidgetClick?: (lineNumber: number, side: number) => void
+        diffViewMode?: number
         extendData?: {
           oldFile?: Record<string, { data: Discussion[] }>
           newFile?: Record<string, { data: Discussion[] }>
         }
         renderExtendLine?: (props: {
-          data: Discussion[]
+          data?: Discussion[]
         }) => ReactNode
         renderWidgetLine?: (props: {
           lineNumber: number
@@ -74,11 +81,20 @@ vi.mock('@git-diff-view/react', async (importOriginal) => {
               {renderExtendLine?.({ data: bucket.data })}
             </div>
           ))}
+          {diffViewMode === 3 ? (
+            <div data-testid="empty-split-extension">
+              {renderExtendLine?.({ data: undefined })}
+            </div>
+          ) : null}
           {widget
-            ? renderWidgetLine?.({
-                ...widget,
-                onClose: () => setWidget(null),
-              })
+            ? (
+                <div data-testid="widget-line">
+                  {renderWidgetLine?.({
+                    ...widget,
+                    onClose: () => setWidget(null),
+                  })}
+                </div>
+              )
             : null}
         </div>
       )
@@ -118,6 +134,30 @@ test('toggles and persists split view', async () => {
   expect(localStorage.getItem('delta-diff-mode')).toBe('split')
 })
 
+test('restores the persisted split view', () => {
+  localStorage.setItem('delta-diff-mode', 'split')
+
+  render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
+
+  expect(screen.getByRole('button', { name: 'Split' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
+test('keeps split view mounted when extension data is absent', async () => {
+  const user = userEvent.setup()
+  render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
+
+  await user.click(screen.getByRole('button', { name: 'Split' }))
+
+  expect(screen.getByTestId('empty-split-extension')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Split' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
 test('opens a line selection and extends it with shift-click', () => {
   render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
 
@@ -128,6 +168,16 @@ test('opens a line selection and extends it with shift-click', () => {
   })
 
   expect(screen.getByText(/lines 12–14/)).toBeVisible()
+})
+
+test('places the comment composer inside the selected diff row', () => {
+  render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Comment line 12' }))
+
+  expect(
+    within(screen.getByTestId('widget-line')).getByLabelText('Comment'),
+  ).toBeVisible()
 })
 
 test('clears selection when the active file changes', () => {
@@ -154,7 +204,15 @@ test('explains files whose diffs cannot be rendered', () => {
   expect(screen.getByText(/too large for GitLab to return/i)).toBeVisible()
 })
 
-test('groups inline and general discussions around the active diff', () => {
+test('shows the active file diff totals', () => {
+  render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
+
+  expect(
+    screen.getByLabelText('File changes: 1 addition, 1 deletion'),
+  ).toBeVisible()
+})
+
+test('shows code first and reveals only inline comments on request', async () => {
   const discussions: Discussion[] = [
     {
       id: 'inline',
@@ -179,7 +237,32 @@ test('groups inline and general discussions around the active diff', () => {
     wrapper: TestProviders,
   })
 
+  const user = userEvent.setup()
+  const diff = screen.getByRole('region', { name: FILE.new_path })
+  expect(
+    within(diff).queryByRole('button', { name: 'Split' }),
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Inline feedback')).not.toBeInTheDocument()
+  expect(screen.queryByText('General feedback')).not.toBeInTheDocument()
+
+  await user.click(
+    screen.getByRole('button', { name: 'Show inline comments (1)' }),
+  )
+
   expect(screen.getByText('Inline feedback')).toBeVisible()
-  expect(screen.getByText('General feedback')).toBeVisible()
-  expect(screen.getByText('General placement')).toBeVisible()
+  expect(screen.queryByText('General feedback')).not.toBeInTheDocument()
+})
+
+test('preserves a long file path without sharing space with view controls', () => {
+  const longPath =
+    'src/features/extremely/long/path/that/needs/to/truncate/parser.ts'
+
+  render(
+    <DiffViewer
+      file={{ ...FILE, old_path: longPath, new_path: longPath }}
+    />,
+    { wrapper: TestProviders },
+  )
+
+  expect(screen.getByTitle(longPath)).toBeVisible()
 })

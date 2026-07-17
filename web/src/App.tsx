@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 
 import { api } from './api/client'
 import type {
@@ -10,15 +10,23 @@ import type {
 } from './api/types'
 import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
+import { diffStats, diffStatsLabel } from './review/diffStats'
 
 const DiffViewer = lazy(() =>
   import('./review/DiffViewer').then((module) => ({
     default: module.DiffViewer,
   })),
 )
+const GeneralDiscussionsPanel = lazy(() =>
+  import('./review/GeneralDiscussionsPanel').then((module) => ({
+    default: module.GeneralDiscussionsPanel,
+  })),
+)
 
 export function App() {
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
+  const [showGeneralDiscussions, setShowGeneralDiscussions] =
+    useState(false)
   const diffFocusRef = useRef<HTMLElement>(null)
   const config = useQuery({
     queryKey: ['config'],
@@ -38,18 +46,41 @@ export function App() {
   const discussions = useQuery({
     queryKey: ['discussions'],
     queryFn: () => api<Discussion[]>('/api/discussions'),
+    retry: false,
   })
+  const totalChanges = useMemo(
+    () =>
+      (diffs.data ?? []).reduce(
+        (total, file) => {
+          const stats = diffStats(file.diff)
+          total.additions += stats.additions
+          total.deletions += stats.deletions
+          return total
+        },
+        { additions: 0, deletions: 0 },
+      ),
+    [diffs.data],
+  )
+  const generalDiscussions = useMemo(
+    () =>
+      (discussions.data ?? []).filter((discussion) =>
+        discussion.notes.every((note) => !note.position),
+      ),
+    [discussions.data],
+  )
 
-  const queries = [config, mergeRequest, diffs, discussions]
-  const error = queries.find((query) => query.error)?.error
-  const isPending = queries.some((query) => query.isPending)
+  const requiredQueries = [config, mergeRequest, diffs]
+  const error = requiredQueries.find((query) => query.error)?.error
+  const isPending = requiredQueries.some((query) => query.isPending)
 
   if (error) {
     return (
       <ErrorState
         error={error}
         onRetry={() => {
-            void Promise.all(queries.map((query) => query.refetch()))
+            void Promise.all(
+              requiredQueries.map((query) => query.refetch()),
+            )
         }}
       />
     )
@@ -97,6 +128,17 @@ export function App() {
             <div>
               <span className="eyebrow">Changes</span>
               <strong>{diffs.data.length} files</strong>
+              <span
+                className="rail-diff-stats"
+                aria-label={`Total changes: ${diffStatsLabel(totalChanges)}`}
+              >
+                <span className="stat-addition" aria-hidden="true">
+                  +{totalChanges.additions}
+                </span>
+                <span className="stat-deletion" aria-hidden="true">
+                  −{totalChanges.deletions}
+                </span>
+              </span>
             </div>
             <span className="thread-count" title="Discussion count">
               {threadCount}
@@ -120,7 +162,46 @@ export function App() {
               </span>
               <h1>{mergeRequest.data.title}</h1>
             </div>
+            <div className="heading-actions">
+              {generalDiscussions.length > 0 ? (
+                <button
+                  className="mr-discussions-toggle"
+                  aria-expanded={showGeneralDiscussions}
+                  type="button"
+                  onClick={() =>
+                    setShowGeneralDiscussions((visible) => !visible)
+                  }
+                >
+                  MR discussions ({generalDiscussions.length})
+                </button>
+              ) : null}
+              {discussions.error ? (
+                <button
+                  className="discussion-load-error"
+                  aria-label="Retry loading discussions"
+                  type="button"
+                  onClick={() => void discussions.refetch()}
+                >
+                  Comments unavailable · Retry
+                </button>
+              ) : null}
+            </div>
           </section>
+
+          {showGeneralDiscussions ? (
+            <Suspense
+              fallback={
+                <section className="mr-discussions-panel">
+                  Loading discussions…
+                </section>
+              }
+            >
+              <GeneralDiscussionsPanel
+                discussions={generalDiscussions}
+                onClose={() => setShowGeneralDiscussions(false)}
+              />
+            </Suspense>
+          ) : null}
 
           {activeFile ? (
             <Suspense
@@ -131,6 +212,7 @@ export function App() {
               }
             >
               <DiffViewer
+                key={`${activeFile.old_path}:${activeFile.new_path}`}
                 file={activeFile}
                 discussions={discussions.data ?? []}
               />

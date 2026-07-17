@@ -8,7 +8,7 @@ const files: DiffFile[] = [
   {
     old_path: 'a.py',
     new_path: 'a.py',
-    diff: '@@',
+    diff: '@@ -1 +1,2 @@\n-old\n+new\n+more',
     new_file: false,
     renamed_file: false,
     deleted_file: false,
@@ -39,12 +39,29 @@ test('keyboard navigation changes files and focuses the diff', () => {
     />,
   )
 
-  const activeFile = screen.getByRole('button', { name: 'a.py' })
+  const activeFile = screen.getByRole('button', { name: /^a\.py/ })
   fireEvent.keyDown(activeFile, { key: 'ArrowDown' })
   expect(onSelect).toHaveBeenCalledWith(1)
 
   fireEvent.keyDown(activeFile, { key: 'Enter' })
   expect(onFocusDiff).toHaveBeenCalledOnce()
+})
+
+test('shows additions and deletions for each file', () => {
+  render(
+    <FileTree
+      files={files}
+      activeIndex={0}
+      onSelect={() => undefined}
+      onFocusDiff={() => undefined}
+    />,
+  )
+
+  expect(
+    screen.getByRole('button', {
+      name: /a\.py.*2 additions.*1 deletion/i,
+    }),
+  ).toBeVisible()
 })
 
 test('keeps large file lists virtualized', () => {

@@ -1,3 +1,7 @@
+import {
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -72,6 +76,34 @@ test('replies and resolves a discussion', async () => {
   expect(await screen.findByText('Resolved')).toBeVisible()
 })
 
+test('renders GitLab-flavored Markdown without exposing HTML comments', () => {
+  render(
+    <DiscussionThread
+      discussion={{
+        ...discussion,
+        notes: [
+          {
+            ...discussion.notes[0],
+            body: [
+              '<!-- internal metadata -->',
+              '**Important change**',
+              '',
+              '| File | Change |',
+              '| --- | --- |',
+              '| parser.py | Handles errors |',
+            ].join('\n'),
+          },
+        ],
+      }}
+    />,
+    { wrapper: TestProviders },
+  )
+
+  expect(screen.getByText('Important change').tagName).toBe('STRONG')
+  expect(screen.getByRole('table')).toBeVisible()
+  expect(screen.queryByText(/internal metadata/)).not.toBeInTheDocument()
+})
+
 test('labels a general fallback', async () => {
   server.use(
     http.post('/api/discussions', () =>
@@ -85,9 +117,14 @@ test('labels a general fallback', async () => {
     ),
   )
   const user = userEvent.setup()
-  render(<CommentComposer selection={selection} />, {
-    wrapper: TestProviders,
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
   })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <CommentComposer selection={selection} />
+    </QueryClientProvider>,
+  )
 
   await user.type(
     screen.getByLabelText('Comment'),
@@ -97,6 +134,9 @@ test('labels a general fallback', async () => {
   expect(
     await screen.findByText(/posted as a general discussion/i),
   ).toBeVisible()
+  expect(queryClient.getQueryData(['discussions'])).toEqual([
+    { id: 'fallback', notes: [] },
+  ])
 })
 
 test('keeps the comment draft when posting fails', async () => {

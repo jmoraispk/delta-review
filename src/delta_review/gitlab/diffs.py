@@ -33,7 +33,7 @@ class DiffService:
                 )
             ]
         except GitLabError as error:
-            if error.status_code != 404:
+            if error.status_code not in {404, 500}:
                 raise
             payload = await self._client.request(
                 "GET", f"{merge_request_path}/changes"

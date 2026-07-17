@@ -29,6 +29,7 @@ dependencies = [
 
 [project.scripts]
 delta = "delta_review.cli:main"
+delta-review = "delta_review.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/jmoraispk/delta-review"

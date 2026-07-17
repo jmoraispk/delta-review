@@ -55,7 +55,7 @@ jobs:
         run: uv build
 
       - name: Smoke-test wheel entry point
-        run: uv run --no-project --isolated --with dist/delta_review-0.1.0-py3-none-any.whl delta --help
+        run: uv tool run --no-cache --isolated --from dist/delta_review-0.1.0-py3-none-any.whl delta-review --help
 
       - name: Smoke-test wheel application
         run: uv run --no-project --isolated --with dist/delta_review-0.1.0-py3-none-any.whl python scripts/smoke_wheel.py

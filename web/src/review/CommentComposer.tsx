@@ -33,13 +33,18 @@ export function CommentComposer({
       }),
     onSuccess: (result) => {
       setDraft('')
+      queryClient.setQueryData<Discussion[]>(
+        ['discussions'],
+        (discussions = []) =>
+          discussions.some(
+            (discussion) => discussion.id === result.discussion.id,
+          )
+            ? discussions
+            : [...discussions, result.discussion],
+      )
       if (result.placement === 'general') {
         setGeneralWarning(true)
       } else {
-        queryClient.setQueryData<Discussion[]>(
-          ['discussions'],
-          (discussions = []) => [...discussions, result.discussion],
-        )
         onPosted?.(result.discussion)
       }
     },

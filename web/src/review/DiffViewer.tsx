@@ -17,6 +17,7 @@ import {
 import type { DiffFile, Discussion } from '../api/types'
 import { CommentComposer } from './CommentComposer'
 import { toDiffData } from './diffAdapter'
+import { diffStats, diffStatsLabel } from './diffStats'
 import { DiscussionThread } from './DiscussionThread'
 import {
   extendSelection,
@@ -49,17 +50,19 @@ function discussionPosition(discussion: Discussion) {
   return discussion.notes.find((note) => note.position)?.position ?? null
 }
 
+interface DiscussionExtensionData {
+  oldFile: Record<string, { data: Discussion[] }>
+  newFile: Record<string, { data: Discussion[] }>
+}
+
 function groupDiscussions(file: DiffFile, discussions: Discussion[]) {
   const oldFile: Record<string, { data: Discussion[] }> = {}
   const newFile: Record<string, { data: Discussion[] }> = {}
-  const general: Discussion[] = []
+  let inlineCount = 0
 
   for (const discussion of discussions) {
     const position = discussionPosition(discussion)
-    if (!position) {
-      general.push(discussion)
-      continue
-    }
+    if (!position) continue
     const belongsToFile =
       position.new_path === file.new_path ||
       position.old_path === file.old_path
@@ -72,9 +75,10 @@ function groupDiscussions(file: DiffFile, discussions: Discussion[]) {
     side[key] = {
       data: [...(side[key]?.data ?? []), discussion],
     }
+    inlineCount += 1
   }
 
-  return { extendData: { oldFile, newFile }, general }
+  return { extendData: { oldFile, newFile }, inlineCount }
 }
 
 function WidgetCloseCapture({
@@ -99,6 +103,10 @@ const processedDiffCache = new WeakMap<
   DiffFile,
   Partial<Record<DiffTheme, DiffBundle>>
 >()
+const EMPTY_EXTEND_DATA: DiscussionExtensionData = {
+  oldFile: {},
+  newFile: {},
+}
 
 function processDiff(
   data: DiffData,
@@ -122,6 +130,7 @@ export function DiffViewer({
   )
   const [theme, setTheme] = useState<'light' | 'dark'>(preferredTheme)
   const [highlight, setHighlight] = useState(false)
+  const [showComments, setShowComments] = useState(false)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const [processedDiff, setProcessedDiff] =
     useState<ParsedDiffFile | null>(null)
@@ -135,7 +144,7 @@ export function DiffViewer({
     },
     [],
   )
-  const { extendData, general } = useMemo(
+  const { extendData, inlineCount } = useMemo(
     () => groupDiscussions(file, discussions),
     [discussions, file],
   )
@@ -143,6 +152,7 @@ export function DiffViewer({
     () => toDiffData(file),
     [file],
   )
+  const fileChanges = useMemo(() => diffStats(file.diff), [file.diff])
 
   useEffect(() => {
     let active = true
@@ -204,6 +214,7 @@ export function DiffViewer({
 
   useEffect(() => {
     setSelection(null)
+    setShowComments(false)
   }, [file.old_path, file.new_path])
 
   useEffect(() => {
@@ -297,6 +308,16 @@ export function DiffViewer({
     shiftPressed.current = false
   }
 
+  function selectionForWidget(
+    lineNumber: number,
+    side: SplitSide,
+  ): SelectionRange {
+    return (
+      selection ??
+      extendSelection(null, pointForLine(lineNumber, side))
+    )
+  }
+
   function rememberModifier(event: MouseEvent<HTMLDivElement>) {
     shiftPressed.current = event.shiftKey
   }
@@ -308,6 +329,7 @@ export function DiffViewer({
   }
 
   function focusPostedDiscussion(discussion: Discussion) {
+    setShowComments(true)
     closeComposer()
     requestAnimationFrame(() => {
       const thread = Array.from(
@@ -324,7 +346,7 @@ export function DiffViewer({
     return (
       <section className="diff-stage unavailable-diff">
         <header className="diff-header">
-          <strong>{file.new_path}</strong>
+          <strong title={file.new_path}>{file.new_path}</strong>
         </header>
         <div className="diff-explanation">
           <span aria-hidden="true">↯</span>
@@ -351,12 +373,22 @@ export function DiffViewer({
   }
 
   return (
-    <section className="diff-stage" aria-label={file.new_path}>
-      <header className="diff-header">
-        <div>
-          <span className="language-dot" aria-hidden="true" />
-          <strong>{file.new_path}</strong>
-        </div>
+    <>
+      <div
+        className="review-toolbar"
+        role="toolbar"
+        aria-label="Review controls"
+      >
+        {inlineCount > 0 ? (
+          <button
+            className="comment-visibility-toggle"
+            aria-pressed={showComments}
+            type="button"
+            onClick={() => setShowComments((visible) => !visible)}
+          >
+            {showComments ? 'Hide' : 'Show'} inline comments ({inlineCount})
+          </button>
+        ) : null}
         <div className="view-control" aria-label="Diff view">
           <button
             aria-pressed={mode === 'unified'}
@@ -375,24 +407,26 @@ export function DiffViewer({
             Split
           </button>
         </div>
-      </header>
+      </div>
 
-      {general.length > 0 ? (
-        <section className="general-discussions" aria-label="General discussions">
-          <div className="general-heading">
-            <span className="eyebrow">General placement</span>
-            <strong>
-              {general.length} {general.length === 1 ? 'discussion' : 'discussions'}
-            </strong>
-          </div>
-          {general.map((discussion) => (
-            <DiscussionThread
-              discussion={discussion}
-              key={discussion.id}
-            />
-          ))}
-        </section>
-      ) : null}
+      <section className="diff-stage" aria-label={file.new_path}>
+      <header className="diff-header">
+        <div className="diff-file-identity">
+          <span className="language-dot" aria-hidden="true" />
+          <strong title={file.new_path}>{file.new_path}</strong>
+          <span
+            className="file-header-stats"
+            aria-label={`File changes: ${diffStatsLabel(fileChanges)}`}
+          >
+            <span className="stat-addition" aria-hidden="true">
+              +{fileChanges.additions}
+            </span>
+            <span className="stat-deletion" aria-hidden="true">
+              −{fileChanges.deletions}
+            </span>
+          </span>
+        </div>
+      </header>
 
       <div
         className="diff-library"
@@ -411,15 +445,25 @@ export function DiffViewer({
           diffViewHighlight={highlight}
           diffViewAddWidget
           diffViewFontSize={12}
-          extendData={extendData}
+          extendData={showComments ? extendData : EMPTY_EXTEND_DATA}
           onAddWidgetClick={selectLine}
-          renderWidgetLine={({ onClose }) => (
-            <WidgetCloseCapture
-              onClose={onClose}
-              onReady={registerWidgetClose}
-            />
+          renderWidgetLine={({ lineNumber, side, onClose }) => (
+            <div className="inline-comment-widget">
+              <WidgetCloseCapture
+                onClose={onClose}
+                onReady={registerWidgetClose}
+              />
+              <CommentComposer
+                selection={toBackendSelection(
+                  file,
+                  selectionForWidget(lineNumber, side),
+                )}
+                onCancel={closeComposer}
+                onPosted={focusPostedDiscussion}
+              />
+            </div>
           )}
-          renderExtendLine={({ data }) => (
+          renderExtendLine={({ data = [] }) => (
             <div className="line-discussions">
               {data.map((discussion) => (
                 <DiscussionThread
@@ -431,13 +475,7 @@ export function DiffViewer({
           )}
         />
       </div>
-      {selection ? (
-        <CommentComposer
-          selection={toBackendSelection(file, selection)}
-          onCancel={closeComposer}
-          onPosted={focusPostedDiscussion}
-        />
-      ) : null}
-    </section>
+      </section>
+    </>
   )
 }

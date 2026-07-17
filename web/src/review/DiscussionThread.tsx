@@ -1,8 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { api } from '../api/client'
 import type { Discussion, DiscussionNote } from '../api/types'
+
+const remarkPlugins = [remarkGfm]
+const rehypePlugins = [rehypeRaw, rehypeSanitize]
 
 interface DiscussionThreadProps {
   discussion: Discussion
@@ -154,7 +161,14 @@ export function DiscussionThread({
               {note !== current.notes[0] ? (
                 <strong>{note.author?.name ?? 'Reviewer'}</strong>
               ) : null}
-              <p>{note.body}</p>
+              <div className="note-markdown">
+                <ReactMarkdown
+                  remarkPlugins={remarkPlugins}
+                  rehypePlugins={rehypePlugins}
+                >
+                  {note.body}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
         ))}

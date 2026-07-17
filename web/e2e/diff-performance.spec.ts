@@ -67,7 +67,26 @@ test('large review stays responsive while rendering and scrolling', async ({
       target_branch: 'main',
     },
     '/api/diffs': makeFiles(),
-    '/api/discussions': [],
+    '/api/discussions': [
+      {
+        id: 'general-comment',
+        notes: [{ id: 1, body: 'General MR comment' }],
+      },
+      {
+        id: 'inline-comment',
+        notes: [
+          {
+            id: 2,
+            body: '**Inline review note**',
+            position: {
+              old_path: 'src/file-00.ts',
+              new_path: 'src/file-00.ts',
+              new_line: 1,
+            },
+          },
+        ],
+      },
+    ],
   }
 
   await page.route('http://127.0.0.1:4173/api/**', async (route) => {
@@ -128,8 +147,59 @@ test('large review stays responsive while rendering and scrolling', async ({
         .querySelector('[data-component="git-diff-view"]')
         ?.getAttribute('data-highlighter') === 'lowlight',
   )
+  await expect(page.getByText('General MR comment')).toHaveCount(0)
+  await expect(page.locator('.diff-stage .view-control')).toHaveCount(0)
+  await page.getByRole('button', {
+    name: 'MR discussions (1)',
+  }).click()
+  await expect(page.getByText('General MR comment')).toBeVisible()
+  await page
+    .getByRole('region', { name: 'MR discussions' })
+    .getByRole('button', { name: 'Close' })
+    .click()
+  await expect(page.getByText('General MR comment')).toHaveCount(0)
+  const showComments = page.getByRole('button', {
+    name: 'Show inline comments (1)',
+  })
+  await expect(showComments).toBeVisible()
+  await showComments.click()
+  await expect(page.getByText('Inline review note')).toBeVisible()
+  await expect(page.getByText('Inline review note')).toHaveJSProperty(
+    'tagName',
+    'STRONG',
+  )
+  await page.getByRole('button', {
+    name: 'Hide inline comments (1)',
+  }).click()
+  await expect(page.getByText('Inline review note')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Split' }).click()
+  await expect(page.locator('.split-diff-view')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Split' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Unified' }).click()
+  await expect(page.locator('.unified-diff-view')).toBeVisible()
 
   const coldOpenMs = await page.evaluate(() => performance.now())
+  await page.evaluate(() => {
+    const state = window as typeof window & {
+      __deltaStaleFile?: boolean
+    }
+    state.__deltaStaleFile = false
+    new MutationObserver(() => {
+      const section = document.querySelector<HTMLElement>('.diff-stage')
+      if (
+        section?.getAttribute('aria-label') === 'src/file-01.ts' &&
+        section.textContent?.includes('old_0_')
+      ) {
+        state.__deltaStaleFile = true
+      }
+    }).observe(document, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    })
+  })
   await page.locator('[data-file-index="1"]').click()
   await page
     .locator(
@@ -137,6 +207,16 @@ test('large review stays responsive while rendering and scrolling', async ({
     )
     .first()
     .waitFor({ state: 'attached' })
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as typeof window & {
+            __deltaStaleFile?: boolean
+          }
+        ).__deltaStaleFile,
+    ),
+  ).toBe(false)
   await page.locator('[data-file-index="0"]').click()
   await page
     .locator(
@@ -231,6 +311,25 @@ test('large review stays responsive while rendering and scrolling', async ({
     },
     { cachedSwitchMs, coldOpenMs },
   )
+
+  const addComment = page.locator('.diff-add-widget').first()
+  const commentRow = addComment.locator('xpath=ancestor::tr')
+  await commentRow.scrollIntoViewIfNeeded()
+  await expect(addComment).toBeHidden()
+  await commentRow.hover()
+  await expect(addComment).toBeVisible()
+  await addComment.click()
+  const inlineComposer = page.locator(
+    '.diff-line-widget .comment-composer textarea',
+  )
+  await expect(inlineComposer).toBeVisible()
+  await inlineComposer.fill('DeltaReview read-only browser test draft')
+  await page
+    .locator('.diff-line-widget .comment-composer')
+    .getByRole('button', { name: 'Cancel' })
+    .click()
+  await expect(inlineComposer).toBeHidden()
+  expect(browserErrors).toEqual([])
 
   console.log(`DELTA_PERFORMANCE ${JSON.stringify(metrics)}`)
   await testInfo.attach('performance.json', {

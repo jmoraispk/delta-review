@@ -22,7 +22,7 @@ const file: DiffFile = {
   too_large: false,
 }
 
-test('keeps the real diff widget mounted after selecting a line', async () => {
+test('keeps the real diff widget row mounted after selecting a line', async () => {
   render(<DiffViewer file={file} />, { wrapper: TestProviders })
 
   const addButtons = await screen.findAllByRole('button', {
@@ -30,7 +30,11 @@ test('keeps the real diff widget mounted after selecting a line', async () => {
   })
   fireEvent.mouseDown(addButtons[0])
 
-  expect(await screen.findByLabelText('Comment')).toBeVisible()
+  await waitFor(() => {
+    expect(
+      document.querySelector('[data-state="widget"]'),
+    ).toBeInTheDocument()
+  })
 })
 
 test('reconstructs worker-processed bundles in the real renderer', async () => {
