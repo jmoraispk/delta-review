@@ -8,6 +8,7 @@ from delta_review.gitlab.client import GitLabClient, GitLabError
 from delta_review.gitlab.positions import (
     DiffSelection,
     Version,
+    build_legacy_position,
     build_position,
 )
 
@@ -15,6 +16,7 @@ from delta_review.gitlab.positions import (
 @dataclass(frozen=True)
 class PostingResult:
     placement: Literal["inline", "general"]
+    fallback: Literal["none", "final_line", "general"]
     discussion: dict[str, Any]
 
 
@@ -71,6 +73,17 @@ class DiscussionService:
             end_new=selection.end_new,
         )
 
+    @classmethod
+    def _position_result(
+        cls,
+        discussion: dict[str, Any],
+        fallback: Literal["none", "final_line"],
+    ) -> PostingResult:
+        placement = cls._placement(discussion)
+        if placement == "general":
+            return PostingResult(placement, "general", discussion)
+        return PostingResult(placement, fallback, discussion)
+
     async def create_inline(
         self,
         project: str,
@@ -81,22 +94,37 @@ class DiscussionService:
         path = self._merge_request_path(project, mr_iid)
         discussions_path = f"{path}/discussions"
         version = await self._current_version(project, mr_iid)
-        position = build_position(selection, version)
+        standard = build_position(selection, version)
+        is_multiline = (
+            selection.start_old,
+            selection.start_new,
+        ) != (selection.end_old, selection.end_new)
 
         try:
             discussion = await self._client.request(
                 "POST",
                 discussions_path,
-                json={"body": body, "position": position},
+                json={"body": body, "position": standard},
             )
         except GitLabError as error:
             if error.status_code not in {400, 422}:
                 raise
-            is_multiline = (
-                selection.start_old,
-                selection.start_new,
-            ) != (selection.end_old, selection.end_new)
             if is_multiline:
+                try:
+                    discussion = await self._client.request(
+                        "POST",
+                        discussions_path,
+                        json={
+                            "body": body,
+                            "position": build_legacy_position(selection, version),
+                        },
+                    )
+                except GitLabError as legacy_error:
+                    if legacy_error.status_code not in {400, 422}:
+                        raise
+                else:
+                    return self._position_result(discussion, "none")
+
                 last_line = self._last_line(selection)
                 try:
                     discussion = await self._client.request(
@@ -111,17 +139,15 @@ class DiscussionService:
                     if retry_error.status_code not in {400, 422}:
                         raise
                 else:
-                    return PostingResult(
-                        self._placement(discussion), discussion
-                    )
+                    return self._position_result(discussion, "final_line")
             discussion = await self._client.request(
                 "POST",
                 discussions_path,
                 json={"body": self._fallback_body(selection, body)},
             )
-            return PostingResult("general", discussion)
+            return PostingResult("general", "general", discussion)
 
-        return PostingResult(self._placement(discussion), discussion)
+        return self._position_result(discussion, "none")
 
     async def get_discussions(
         self, project: str, mr_iid: int

@@ -46,6 +46,7 @@ async def test_create_inline_fetches_fresh_version_and_verifies_position() -> No
         await client.close()
     assert versions.call_count == 1
     assert result.placement == "inline"
+    assert result.fallback == "none"
     assert create.calls[0].request.read()
     assert create.calls[0].request.headers["content-type"].startswith(
         "application/json"
@@ -69,6 +70,7 @@ async def test_null_position_returns_existing_general_discussion() -> None:
     finally:
         await client.close()
     assert result.placement == "general"
+    assert result.fallback == "general"
     assert create.call_count == 1
 
 
@@ -92,40 +94,102 @@ async def test_position_rejection_posts_one_marked_general_fallback() -> None:
     finally:
         await client.close()
     assert result.placement == "general"
+    assert result.fallback == "general"
     assert create.call_count == 2
     assert "📍 a.py:12" in create.calls[1].request.content.decode()
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_multiline_rejection_retries_the_last_line_inline() -> None:
+async def test_multiline_rejection_retries_legacy_range() -> None:
     respx.get(VERSIONS_URL).mock(
         return_value=httpx.Response(200, json=[VERSION])
     )
     create = respx.post(DISCUSSIONS_URL).mock(
         side_effect=[
-            httpx.Response(422, json={"message": "position is invalid"}),
+            httpx.Response(422, json={"message": "invalid range"}),
             httpx.Response(
-                201, json=discussion({"new_line": 14})
+                201,
+                json=discussion(
+                    {
+                        "new_line": 14,
+                        "line_range": {
+                            "start": {"new_line": 12, "type": "new"},
+                            "end": {"new_line": 14, "type": "new"},
+                        },
+                    }
+                ),
             ),
         ]
     )
     client = GitLabClient("https://gitlab.com/api/v4", "token")
     try:
         result = await DiscussionService(client).create_inline(
-            "group/delta",
-            7,
-            MULTILINE_SELECTION,
-            "Please rename this.",
+            "group/delta", 7, MULTILINE_SELECTION, "Review this range."
         )
     finally:
         await client.close()
 
     assert result.placement == "inline"
+    assert result.fallback == "none"
     assert create.call_count == 2
-    retry_position = create.calls[1].request.content.decode()
-    assert '"new_line":14' in retry_position
-    assert '"line_range"' not in retry_position
+    assert b'"new_line":"14"' in create.calls[1].request.content
+    assert b'"line_range"' in create.calls[1].request.content
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multiline_rejection_retries_final_line_after_legacy_range() -> None:
+    respx.get(VERSIONS_URL).mock(
+        return_value=httpx.Response(200, json=[VERSION])
+    )
+    create = respx.post(DISCUSSIONS_URL).mock(
+        side_effect=[
+            httpx.Response(422, json={"message": "invalid range"}),
+            httpx.Response(422, json={"message": "invalid legacy range"}),
+            httpx.Response(201, json=discussion({"new_line": 14})),
+        ]
+    )
+    client = GitLabClient("https://gitlab.com/api/v4", "token")
+    try:
+        result = await DiscussionService(client).create_inline(
+            "group/delta", 7, MULTILINE_SELECTION, "Review this range."
+        )
+    finally:
+        await client.close()
+
+    assert result.placement == "inline"
+    assert result.fallback == "final_line"
+    assert create.call_count == 3
+    assert b'"new_line":14' in create.calls[2].request.content
+    assert b'"line_range"' not in create.calls[2].request.content
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_multiline_rejection_falls_back_to_general_after_all_retries() -> None:
+    respx.get(VERSIONS_URL).mock(
+        return_value=httpx.Response(200, json=[VERSION])
+    )
+    create = respx.post(DISCUSSIONS_URL).mock(
+        side_effect=[
+            httpx.Response(422, json={"message": "invalid range"}),
+            httpx.Response(422, json={"message": "invalid legacy range"}),
+            httpx.Response(422, json={"message": "invalid final line"}),
+            httpx.Response(201, json=discussion(None)),
+        ]
+    )
+    client = GitLabClient("https://gitlab.com/api/v4", "token")
+    try:
+        result = await DiscussionService(client).create_inline(
+            "group/delta", 7, MULTILINE_SELECTION, "Review this range."
+        )
+    finally:
+        await client.close()
+
+    assert result.placement == "general"
+    assert result.fallback == "general"
+    assert create.call_count == 4
 
 
 @pytest.mark.asyncio

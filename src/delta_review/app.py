@@ -216,6 +216,7 @@ def create_app(
         )
         return {
             "placement": result.placement,
+            "fallback": result.fallback,
             "discussion": result.discussion,
         }
 

@@ -301,7 +301,14 @@ async def test_discussion_routes_create_reply_and_resolve() -> None:
     assert list_response.status_code == 200
     assert list_response.json()[0]["id"] == "existing"
     assert create_response.status_code == 201
-    assert create_response.json()["placement"] == "inline"
+    assert create_response.json() == {
+        "placement": "inline",
+        "fallback": "none",
+        "discussion": {
+            "id": "new-discussion",
+            "notes": [{"position": {"new_line": 12}}],
+        },
+    }
     assert reply_response.status_code == 201
     assert resolve_response.status_code == 200
     assert resolve_response.json()["resolved"] is True
