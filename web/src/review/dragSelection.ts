@@ -5,7 +5,44 @@ export interface DragLineTarget {
   side: DiffSide
 }
 
+export interface DragStart {
+  target: DragLineTarget
+  origin: 'gutter' | 'comment-button'
+}
+
 const SELECTED_CLASS = 'delta-drag-selected'
+
+export function dragStartFromElement(
+  element: Element | null,
+): DragStart | null {
+  const commentWidget = element?.closest<HTMLElement>(
+    '[data-add-widget="old"], [data-add-widget="new"]',
+  )
+  if (commentWidget?.querySelector('button')?.contains(element)) {
+    const side = commentWidget.dataset.addWidget as DiffSide
+    const marker = commentWidget
+      .closest('.diff-line')
+      ?.querySelector<HTMLElement>(
+        side === 'old'
+          ? '[data-line-old-num], [data-line-num]'
+          : '[data-line-new-num], [data-line-num]',
+      )
+    const lineNumber = Number(
+      marker?.dataset.lineOldNum ??
+        marker?.dataset.lineNewNum ??
+        marker?.dataset.lineNum,
+    )
+    return Number.isInteger(lineNumber) && lineNumber > 0
+      ? {
+          target: { lineNumber, side },
+          origin: 'comment-button',
+        }
+      : null
+  }
+
+  const target = dragTargetFromElement(element)
+  return target ? { target, origin: 'gutter' } : null
+}
 
 export function dragTargetFromElement(
   element: Element | null,

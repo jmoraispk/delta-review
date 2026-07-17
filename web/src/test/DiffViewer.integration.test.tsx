@@ -37,6 +37,28 @@ test('keeps the real diff widget row mounted after selecting a line', async () =
   })
 })
 
+test('opens a comment button widget only after its pointer gesture resolves', async () => {
+  render(<DiffViewer file={file} />, { wrapper: TestProviders })
+
+  const button = await screen.findByRole('button', {
+    name: 'Comment on new line 1',
+  })
+  fireEvent.pointerDown(button, { button: 0, pointerId: 1 })
+
+  expect(fireEvent.mouseDown(button)).toBe(false)
+  expect(
+    document.querySelector('[data-state="widget"]'),
+  ).not.toBeInTheDocument()
+
+  fireEvent.pointerUp(button, { button: 0, pointerId: 1 })
+
+  await waitFor(() => {
+    expect(
+      document.querySelector('[data-state="widget"]'),
+    ).toBeInTheDocument()
+  })
+})
+
 test('reconstructs worker-processed bundles in the real renderer', async () => {
   const originalWorker = globalThis.Worker
 

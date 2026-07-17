@@ -21,6 +21,7 @@ import { toDiffData } from './diffAdapter'
 import { diffStats, diffStatsLabel } from './diffStats'
 import {
   clearDragHighlight,
+  dragStartFromElement,
   dragTargetFromElement,
   findCommentButton,
   highlightDragRange,
@@ -51,6 +52,7 @@ interface ActiveDrag {
   start: DragLineTarget
   current: DragLineTarget
   moved: boolean
+  openOnRelease: boolean
 }
 
 export interface DiffViewerProps {
@@ -361,6 +363,15 @@ export function DiffViewer({
     shiftPressed.current = event.shiftKey
   }
 
+  function handleMouseDownCapture(event: MouseEvent<HTMLDivElement>) {
+    if (activeDragRef.current?.openOnRelease) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+    rememberModifier(event)
+  }
+
   function closeComposer() {
     setSelection(null)
     activeDragRef.current = null
@@ -402,17 +413,18 @@ export function DiffViewer({
 
   function beginDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return
-    const target = dragTargetFromElement(event.target as Element)
-    if (!target) return
+    const start = dragStartFromElement(event.target as Element)
+    if (!start) return
 
     closeComposer()
     activeDragRef.current = {
       pointerId: event.pointerId,
-      start: target,
-      current: target,
+      start: start.target,
+      current: start.target,
       moved: false,
+      openOnRelease: start.origin === 'comment-button',
     }
-    highlightDragRange(event.currentTarget, target, target)
+    highlightDragRange(event.currentTarget, start.target, start.target)
     event.currentTarget.setPointerCapture?.(event.pointerId)
     event.preventDefault()
   }
@@ -436,17 +448,16 @@ export function DiffViewer({
     event.currentTarget.releasePointerCapture?.(event.pointerId)
     event.preventDefault()
 
-    if (!drag.moved) {
+    if (!drag.moved && !drag.openOnRelease) {
       clearDragHighlight(event.currentTarget)
       return
     }
 
     const range = rangeForDrag(drag.start, drag.current)
     const endpoint: DragLineTarget = {
-      lineNumber: Math.max(
-        drag.start.lineNumber,
-        drag.current.lineNumber,
-      ),
+      lineNumber: drag.moved
+        ? Math.max(drag.start.lineNumber, drag.current.lineNumber)
+        : drag.start.lineNumber,
       side: drag.start.side,
     }
     pendingDragSelectionRef.current = range
@@ -457,10 +468,9 @@ export function DiffViewer({
       const button = root && findCommentButton(root, endpoint)
       if (button) {
         button.dispatchEvent(
-          new window.MouseEvent('mousedown', {
+          new MouseEvent('mousedown', {
             bubbles: true,
             cancelable: true,
-            view: window,
           }),
         )
         return
@@ -582,7 +592,7 @@ export function DiffViewer({
         className="diff-library"
         ref={diffLibraryRef}
         onClickCapture={rememberModifier}
-        onMouseDownCapture={rememberModifier}
+        onMouseDownCapture={handleMouseDownCapture}
         onPointerDownCapture={beginDrag}
         onPointerMoveCapture={continueDrag}
         onPointerUpCapture={endDrag}

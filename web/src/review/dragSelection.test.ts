@@ -2,6 +2,7 @@ import { beforeEach, expect, test } from 'vitest'
 
 import {
   clearDragHighlight,
+  dragStartFromElement,
   dragTargetFromElement,
   findCommentButton,
   highlightDragRange,
@@ -43,6 +44,29 @@ test('reads a selectable side and line from the number gutter', () => {
   expect(
     dragTargetFromElement(document.querySelector('.diff-line')),
   ).toBeNull()
+})
+
+test('starts a drag from a comment button without allowing other controls', () => {
+  const button = document.querySelector<HTMLButtonElement>(
+    '.diff-line-num button',
+  )
+  if (!button) throw new Error('comment button is missing')
+  button.setAttribute('aria-label', 'Comment on new line 12')
+
+  expect(dragStartFromElement(button)).toEqual({
+    target: { lineNumber: 12, side: 'new' },
+    origin: 'comment-button',
+  })
+
+  for (const element of [
+    document.createElement('a'),
+    document.createElement('input'),
+    document.createElement('textarea'),
+    document.createElement('select'),
+  ]) {
+    document.body.append(element)
+    expect(dragStartFromElement(element)).toBeNull()
+  }
 })
 
 test('highlights reverse ranges and locates the endpoint comment button', () => {

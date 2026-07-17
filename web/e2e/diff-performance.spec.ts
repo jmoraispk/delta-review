@@ -179,9 +179,13 @@ test('large review stays responsive while rendering and scrolling', async ({
   ).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Unified' }).click()
   await expect(page.locator('.unified-diff-view')).toBeVisible()
-  const dragStart = page.locator('[data-line-new-num="1"]').first()
+  const dragStartLine = page.locator('[data-line-new-num="1"]').first()
+  await dragStartLine.scrollIntoViewIfNeeded()
+  await dragStartLine.hover()
+  const dragStart = page.getByRole('button', {
+    name: 'Comment on new line 1',
+  })
   const dragEnd = page.locator('[data-line-new-num="3"]').first()
-  await dragStart.scrollIntoViewIfNeeded()
   const startBox = await dragStart.boundingBox()
   const endBox = await dragEnd.boundingBox()
   if (!startBox || !endBox) {
@@ -204,15 +208,33 @@ test('large review stays responsive while rendering and scrolling', async ({
   await expect(rangeComposer).toBeVisible()
   await expect(rangeComposer.getByText(/lines 1–3/)).toBeVisible()
   await rangeComposer.getByRole('button', { name: 'Cancel' }).click()
+  await dragStartLine.hover()
+  const clickBox = await dragStart.boundingBox()
+  if (!clickBox) {
+    throw new Error('Comment button is missing')
+  }
+  await page.mouse.move(
+    clickBox.x + clickBox.width / 2,
+    clickBox.y + clickBox.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.up()
+  await expect(rangeComposer).toBeVisible()
+  await expect(rangeComposer.getByText(/line 1/)).toBeVisible()
+  await rangeComposer.getByRole('button', { name: 'Cancel' }).click()
   await page.getByRole('button', { name: 'Split' }).click()
   await expect(page.locator('.split-diff-view')).toBeVisible()
-  const reverseStart = page
+  const reverseStartLine = page
     .locator('.diff-line[data-side="old"] [data-line-num="3"]')
     .first()
+  await reverseStartLine.scrollIntoViewIfNeeded()
+  await reverseStartLine.locator('xpath=ancestor::tr').hover()
+  const reverseStart = reverseStartLine
+    .locator('xpath=ancestor::tr')
+    .locator('[data-add-widget="old"] button')
   const reverseEnd = page
     .locator('.diff-line[data-side="old"] [data-line-num="1"]')
     .first()
-  await reverseStart.scrollIntoViewIfNeeded()
   const reverseStartBox = await reverseStart.boundingBox()
   const reverseEndBox = await reverseEnd.boundingBox()
   if (!reverseStartBox || !reverseEndBox) {
