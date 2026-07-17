@@ -66,5 +66,6 @@ export interface Discussion {
 
 export interface PostingResult {
   placement: 'inline' | 'general'
+  fallback: 'none' | 'final_line' | 'general'
   discussion: Discussion
 }

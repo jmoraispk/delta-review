@@ -5,6 +5,7 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import {
   forwardRef,
   useImperativeHandle,
@@ -16,6 +17,7 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import type { DiffFile, Discussion } from '../api/types'
 import { DiffViewer } from '../review/DiffViewer'
 import { TestProviders } from './fixtures'
+import { server } from './server'
 
 vi.mock('@git-diff-view/react', async (importOriginal) => {
   const actual =
@@ -116,7 +118,10 @@ const FILE: DiffFile = {
   too_large: false,
 }
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  window.location.hash = '#session=test-session'
+})
 
 test('toggles and persists split view', async () => {
   const user = userEvent.setup()
@@ -277,4 +282,62 @@ test('preserves a long file path without sharing space with view controls', () =
   )
 
   expect(screen.getByTitle(longPath)).toBeVisible()
+})
+
+test('shows and dismisses a final-line fallback above the active diff', async () => {
+  server.use(
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        {
+          placement: 'inline',
+          fallback: 'final_line',
+          discussion: { id: 'final-line', notes: [] },
+        },
+        { status: 201 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
+
+  await user.click(screen.getByRole('button', { name: 'Comment line 12' }))
+  await user.type(screen.getByLabelText('Comment'), 'Keep this visible.')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'GitLab stored this range comment on its final line.',
+  )
+  expect(screen.queryByLabelText('Comment')).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Dismiss status' }))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+test('shows and dismisses a general fallback above the active diff', async () => {
+  server.use(
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        {
+          placement: 'general',
+          fallback: 'general',
+          discussion: { id: 'general', notes: [] },
+        },
+        { status: 201 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  render(<DiffViewer file={FILE} />, { wrapper: TestProviders })
+
+  await user.click(screen.getByRole('button', { name: 'Comment line 12' }))
+  await user.type(screen.getByLabelText('Comment'), 'Keep this visible.')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'GitLab stored this as a general discussion.',
+  )
+  expect(screen.queryByLabelText('Comment')).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Dismiss status' }))
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })

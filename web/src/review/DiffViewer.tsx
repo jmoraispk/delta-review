@@ -15,7 +15,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 
-import type { DiffFile, Discussion } from '../api/types'
+import type { DiffFile, Discussion, PostingResult } from '../api/types'
 import { CommentComposer } from './CommentComposer'
 import { toDiffData } from './diffAdapter'
 import { diffStats, diffStatsLabel } from './diffStats'
@@ -149,6 +149,8 @@ export function DiffViewer({
   const [highlight, setHighlight] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
+  const [fallbackNotice, setFallbackNotice] =
+    useState<PostingResult['fallback'] | null>(null)
   const [processedDiff, setProcessedDiff] =
     useState<ParsedDiffFile | null>(null)
   const shiftPressed = useRef(false)
@@ -334,6 +336,7 @@ export function DiffViewer({
   }
 
   function selectLine(lineNumber: number, side: SplitSide) {
+    setFallbackNotice(null)
     const draggedSelection = pendingDragSelectionRef.current
     if (draggedSelection) {
       pendingDragSelectionRef.current = null
@@ -416,6 +419,7 @@ export function DiffViewer({
     const start = dragStartFromElement(event.target as Element)
     if (!start) return
 
+    setFallbackNotice(null)
     closeComposer()
     activeDragRef.current = {
       pointerId: event.pointerId,
@@ -488,15 +492,19 @@ export function DiffViewer({
     clearDragHighlight(event.currentTarget)
   }
 
-  function focusPostedDiscussion(discussion: Discussion) {
-    setShowComments(true)
+  function handlePostedComment(result: PostingResult) {
+    if (result.fallback !== 'none') {
+      setFallbackNotice(result.fallback)
+    }
     closeComposer()
+    if (result.placement !== 'inline') return
+    setShowComments(true)
     requestAnimationFrame(() => {
       const thread = Array.from(
         document.querySelectorAll<HTMLElement>('[data-discussion-id]'),
       ).find(
         (element) =>
-          element.dataset.discussionId === discussion.id,
+          element.dataset.discussionId === result.discussion.id,
       )
       thread?.focus()
     })
@@ -587,6 +595,22 @@ export function DiffViewer({
           </span>
         </div>
       </header>
+      {fallbackNotice ? (
+        <div className="fallback-notice" role="status">
+          <span>
+            {fallbackNotice === 'final_line'
+              ? 'GitLab stored this range comment on its final line.'
+              : 'GitLab stored this as a general discussion.'}
+          </span>
+          <button
+            aria-label="Dismiss status"
+            type="button"
+            onClick={() => setFallbackNotice(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       <div
         className="diff-library"
@@ -623,7 +647,7 @@ export function DiffViewer({
                   selectionForWidget(lineNumber, side),
                 )}
                 onCancel={closeComposer}
-                onPosted={focusPostedDiscussion}
+                onPosted={handlePostedComment}
               />
             </div>
           )}

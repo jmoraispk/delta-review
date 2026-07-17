@@ -7,7 +7,7 @@ import type { BackendSelection } from './selection'
 
 interface CommentComposerProps {
   selection: BackendSelection
-  onPosted?: (discussion: Discussion) => void
+  onPosted?: (result: PostingResult) => void
   onCancel?: () => void
 }
 
@@ -24,7 +24,6 @@ export function CommentComposer({
 }: CommentComposerProps) {
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState('')
-  const [generalWarning, setGeneralWarning] = useState(false)
   const createComment = useMutation({
     mutationFn: (body: string) =>
       api<PostingResult>('/api/discussions', {
@@ -35,21 +34,18 @@ export function CommentComposer({
       setDraft('')
       queryClient.setQueryData<Discussion[]>(
         ['discussions'],
-        (discussions = []) =>
-          discussions.some(
-            (discussion) => discussion.id === result.discussion.id,
+        (values = []) => {
+          const index = values.findIndex(
+            (value) => value.id === result.discussion.id,
           )
-            ? discussions
-            : [...discussions, result.discussion],
+          if (index < 0) return [...values, result.discussion]
+          return values.map((value, current) =>
+            current === index ? result.discussion : value,
+          )
+        },
       )
-      if (result.placement === 'general') {
-        setGeneralWarning(true)
-      } else {
-        onPosted?.(result.discussion)
-      }
+      onPosted?.(result)
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: ['discussions'] }),
   })
 
   function submit(event: FormEvent) {
@@ -95,12 +91,6 @@ export function CommentComposer({
           {createComment.isPending ? 'Posting…' : 'Comment'}
         </button>
       </div>
-      {generalWarning ? (
-        <p className="placement-warning" role="status">
-          Posted as a general discussion because GitLab did not preserve the
-          selected line position.
-        </p>
-      ) : null}
       {createComment.error ? (
         <p className="mutation-error" role="alert">
           {createComment.error.message}

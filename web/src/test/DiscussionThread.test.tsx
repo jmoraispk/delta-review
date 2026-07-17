@@ -1,13 +1,14 @@
 import {
   QueryClient,
   QueryClientProvider,
+  useQuery,
 } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
-import type { Discussion } from '../api/types'
+import type { Discussion, PostingResult } from '../api/types'
 import { CommentComposer } from '../review/CommentComposer'
 import { DiscussionThread } from '../review/DiscussionThread'
 import type { BackendSelection } from '../review/selection'
@@ -45,6 +46,18 @@ const selection: BackendSelection = {
 beforeEach(() => {
   window.location.hash = '#session=test-session'
 })
+
+function DiscussionCacheObserver() {
+  useQuery({
+    queryKey: ['discussions'],
+    queryFn: async () => {
+      const response = await fetch('/api/discussions')
+      return response.json() as Promise<Discussion[]>
+    },
+    staleTime: Infinity,
+  })
+  return null
+}
 
 test('replies and resolves a discussion', async () => {
   server.use(
@@ -104,13 +117,21 @@ test('renders GitLab-flavored Markdown without exposing HTML comments', () => {
   expect(screen.queryByText(/internal metadata/)).not.toBeInTheDocument()
 })
 
-test('labels a general fallback', async () => {
+test('keeps the POSTed discussion in the cache without refetching', async () => {
+  const existing: Discussion = { id: 'existing', notes: [] }
+  const posted: Discussion = { id: 'posted', notes: [] }
+  let discussionGetCount = 0
   server.use(
+    http.get('/api/discussions', () => {
+      discussionGetCount += 1
+      return HttpResponse.json([])
+    }),
     http.post('/api/discussions', () =>
       HttpResponse.json(
         {
-          placement: 'general',
-          discussion: { id: 'fallback', notes: [] },
+          placement: 'inline',
+          fallback: 'none',
+          discussion: posted,
         },
         { status: 201 },
       ),
@@ -120,8 +141,10 @@ test('labels a general fallback', async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
+  queryClient.setQueryData<Discussion[]>(['discussions'], [existing])
   render(
     <QueryClientProvider client={queryClient}>
+      <DiscussionCacheObserver />
       <CommentComposer selection={selection} />
     </QueryClientProvider>,
   )
@@ -131,12 +154,53 @@ test('labels a general fallback', async () => {
     'Please rename this.',
   )
   await user.click(screen.getByRole('button', { name: 'Comment' }))
-  expect(
-    await screen.findByText(/posted as a general discussion/i),
-  ).toBeVisible()
-  expect(queryClient.getQueryData(['discussions'])).toEqual([
-    { id: 'fallback', notes: [] },
-  ])
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      existing,
+      posted,
+    ]),
+  )
+
+  expect(discussionGetCount).toBe(0)
+})
+
+test('replaces an equal-ID discussion with the authoritative POST result', async () => {
+  const stale: Discussion = { id: 'discussion-1', notes: [] }
+  const posted: Discussion = {
+    id: 'discussion-1',
+    notes: [{ id: 2, body: 'Fresh result' }],
+  }
+  server.use(
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        {
+          placement: 'inline',
+          fallback: 'none',
+          discussion: posted,
+        } satisfies PostingResult,
+        { status: 201 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  queryClient.setQueryData<Discussion[]>(['discussions'], [stale])
+  render(
+    <QueryClientProvider client={queryClient}>
+      <CommentComposer selection={selection} />
+    </QueryClientProvider>,
+  )
+
+  await user.type(screen.getByLabelText('Comment'), 'Fresh result')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      posted,
+    ]),
+  )
 })
 
 test('keeps the comment draft when posting fails', async () => {

@@ -620,6 +620,30 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
+.fallback-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(212, 168, 79, 0.25);
+  background: rgba(212, 168, 79, 0.08);
+  color: #dfbd73;
+  font-size: 11px;
+}
+
+.fallback-notice button {
+  flex: none;
+  padding: 4px 7px;
+  border: 1px solid rgba(212, 168, 79, 0.35);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
 .diff-placeholder {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -1122,18 +1146,11 @@ button.primary-action {
   font-size: 10px;
 }
 
-.placement-warning,
 .mutation-error {
   margin: 0;
   padding: 7px 9px;
   border-radius: 4px;
   font-size: 11px;
-}
-
-.placement-warning {
-  border: 1px solid rgba(212, 168, 79, 0.25);
-  background: rgba(212, 168, 79, 0.08);
-  color: #dfbd73;
 }
 
 .mutation-error {
