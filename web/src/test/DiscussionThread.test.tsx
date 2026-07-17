@@ -8,8 +8,8 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
+import App from '../App'
 import type { Discussion, PostingResult } from '../api/types'
-import { api } from '../api/client'
 import { CommentComposer } from '../review/CommentComposer'
 import { DiscussionThread } from '../review/DiscussionThread'
 import type { BackendSelection } from '../review/selection'
@@ -56,15 +56,6 @@ function DiscussionCacheObserver() {
       return response.json() as Promise<Discussion[]>
     },
     staleTime: Infinity,
-  })
-  return null
-}
-
-function DelayedDiscussionCacheObserver() {
-  useQuery({
-    queryKey: ['discussions'],
-    queryFn: ({ signal }) =>
-      api<Discussion[]>('/api/discussions', { signal }),
   })
   return null
 }
@@ -239,7 +230,8 @@ test('replaces an equal-ID discussion with the authoritative POST result', async
   )
 })
 
-test('keeps the POSTed discussion when a startup fetch resolves afterward', async () => {
+test('merges a delayed startup fetch with a successfully POSTed discussion', async () => {
+  const existing: Discussion = { id: 'existing', notes: [] }
   const posted: Discussion = { id: 'posted', notes: [] }
   let startGet!: () => void
   let resolveGet!: (value: Discussion[]) => void
@@ -271,7 +263,7 @@ test('keeps the POSTed discussion when a startup fetch resolves afterward', asyn
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <DelayedDiscussionCacheObserver />
+      <App />
       <CommentComposer selection={selection} />
     </QueryClientProvider>,
   )
@@ -285,11 +277,198 @@ test('keeps the POSTed discussion when a startup fetch resolves afterward', asyn
     ]),
   )
 
-  resolveGet([])
-  await new Promise((resolve) => window.setTimeout(resolve, 25))
-  expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-    posted,
-  ])
+  resolveGet([existing])
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      existing,
+      posted,
+    ]),
+  )
+})
+
+test('allows a delayed startup fetch to finish when the POST fails', async () => {
+  const existing: Discussion = { id: 'existing', notes: [] }
+  let startGet!: () => void
+  let resolveGet!: (value: Discussion[]) => void
+  const getStarted = new Promise<void>((resolve) => {
+    startGet = resolve
+  })
+  const delayedGet = new Promise<Discussion[]>((resolve) => {
+    resolveGet = resolve
+  })
+  server.use(
+    http.get('/api/discussions', async () => {
+      startGet()
+      return HttpResponse.json(await delayedGet)
+    }),
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        { detail: 'GitLab rejected the comment' },
+        { status: 502 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+      <CommentComposer selection={selection} />
+    </QueryClientProvider>,
+  )
+
+  await getStarted
+  const editor = screen.getByLabelText('Comment')
+  await user.type(editor, 'Keep this draft.')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+  expect(await screen.findByRole('alert')).toBeVisible()
+
+  resolveGet([existing])
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      existing,
+    ]),
+  )
+  expect(editor).toHaveValue('Keep this draft.')
+})
+
+test('uses fetched server data and clears a confirmed POST overlay', async () => {
+  const posted: Discussion = {
+    id: 'posted',
+    notes: [{ id: 1, body: 'Local POST result' }],
+  }
+  const confirmed: Discussion = {
+    id: 'posted',
+    notes: [{ id: 1, body: 'Confirmed server result' }],
+  }
+  let startGet!: () => void
+  let resolveGet!: (value: Discussion[]) => void
+  const getStarted = new Promise<void>((resolve) => {
+    startGet = resolve
+  })
+  const delayedGet = new Promise<Discussion[]>((resolve) => {
+    resolveGet = resolve
+  })
+  server.use(
+    http.get('/api/discussions', async () => {
+      startGet()
+      return HttpResponse.json(await delayedGet)
+    }),
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        {
+          placement: 'inline',
+          fallback: 'none',
+          discussion: posted,
+        } satisfies PostingResult,
+        { status: 201 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+      <CommentComposer selection={selection} />
+    </QueryClientProvider>,
+  )
+
+  await getStarted
+  await user.type(screen.getByLabelText('Comment'), 'Confirm this comment.')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+  await waitFor(() =>
+    expect(
+      queryClient.getQueryData<Discussion[]>([
+        'discussions',
+        'pending',
+      ]),
+    ).toEqual([posted]),
+  )
+
+  resolveGet([confirmed])
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      confirmed,
+    ]),
+  )
+  expect(
+    queryClient.getQueryData<Discussion[]>(['discussions', 'pending']) ?? [],
+  ).toEqual([])
+})
+
+test('merges a manual update that overlaps a successful POST', async () => {
+  const existing: Discussion = { id: 'existing', notes: [] }
+  const refreshed: Discussion = { id: 'refreshed', notes: [] }
+  const posted: Discussion = { id: 'posted', notes: [] }
+  let discussionGetCount = 0
+  let startUpdate!: () => void
+  let resolveUpdate!: (value: Discussion[]) => void
+  const updateStarted = new Promise<void>((resolve) => {
+    startUpdate = resolve
+  })
+  const delayedUpdate = new Promise<Discussion[]>((resolve) => {
+    resolveUpdate = resolve
+  })
+  server.use(
+    http.get('/api/discussions', async () => {
+      discussionGetCount += 1
+      if (discussionGetCount === 1) return HttpResponse.json([existing])
+      startUpdate()
+      return HttpResponse.json(await delayedUpdate)
+    }),
+    http.post('/api/discussions', () =>
+      HttpResponse.json(
+        {
+          placement: 'inline',
+          fallback: 'none',
+          discussion: posted,
+        } satisfies PostingResult,
+        { status: 201 },
+      ),
+    ),
+  )
+  const user = userEvent.setup()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+      <CommentComposer selection={selection} />
+    </QueryClientProvider>,
+  )
+
+  await screen.findByRole('button', { name: 'Update' })
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      existing,
+    ]),
+  )
+  await user.click(screen.getByRole('button', { name: 'Update' }))
+  await updateStarted
+
+  await user.type(screen.getByLabelText('Comment'), 'Post during update.')
+  await user.click(screen.getByRole('button', { name: 'Comment' }))
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      existing,
+      posted,
+    ]),
+  )
+
+  resolveUpdate([existing, refreshed])
+  await waitFor(() =>
+    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
+      existing,
+      refreshed,
+      posted,
+    ]),
+  )
 })
 
 test('keeps the comment draft when posting fails', async () => {

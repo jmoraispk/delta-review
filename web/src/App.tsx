@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 
 import { api } from './api/client'
@@ -11,6 +11,10 @@ import type {
 import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
 import { diffStats, diffStatsLabel } from './review/diffStats'
+import {
+  discussionsQueryKey,
+  mergeFetchedDiscussions,
+} from './review/discussionCache'
 
 const DiffViewer = lazy(() =>
   import('./review/DiffViewer').then((module) => ({
@@ -26,6 +30,7 @@ const GeneralDiscussionsPanel = lazy(() =>
 type UpdateState = 'idle' | 'updating' | 'success' | 'error'
 
 export function App() {
+  const queryClient = useQueryClient()
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
   const [showGeneralDiscussions, setShowGeneralDiscussions] =
     useState(false)
@@ -51,9 +56,12 @@ export function App() {
     refetchOnReconnect: false,
   })
   const discussions = useQuery({
-    queryKey: ['discussions'],
-    queryFn: ({ signal }) =>
-      api<Discussion[]>('/api/discussions', { signal }),
+    queryKey: discussionsQueryKey,
+    queryFn: async ({ signal }) =>
+      mergeFetchedDiscussions(
+        queryClient,
+        await api<Discussion[]>('/api/discussions', { signal }),
+      ),
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

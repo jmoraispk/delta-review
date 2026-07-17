@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
 import { api } from '../api/client'
-import type { Discussion, PostingResult } from '../api/types'
+import type { PostingResult } from '../api/types'
+import { recordPostedDiscussion } from './discussionCache'
 import type { BackendSelection } from './selection'
 
 interface CommentComposerProps {
@@ -30,24 +31,9 @@ export function CommentComposer({
         method: 'POST',
         body: JSON.stringify({ ...selection, body }),
       }),
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['discussions'] })
-    },
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       setDraft('')
-      await queryClient.cancelQueries({ queryKey: ['discussions'] })
-      queryClient.setQueryData<Discussion[]>(
-        ['discussions'],
-        (values = []) => {
-          const index = values.findIndex(
-            (value) => value.id === result.discussion.id,
-          )
-          if (index < 0) return [...values, result.discussion]
-          return values.map((value, current) =>
-            current === index ? result.discussion : value,
-          )
-        },
-      )
+      recordPostedDiscussion(queryClient, result.discussion)
       onPosted?.(result)
     },
   })
