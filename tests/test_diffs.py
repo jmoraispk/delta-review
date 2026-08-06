@@ -150,6 +150,135 @@ async def test_retries_truncated_changes_with_raw_diffs() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_refetches_raw_diffs_when_pagination_truncates() -> None:
+    base = (
+        "https://gitlab.example.com/api/v4/projects/group%2Fdelta/"
+        "merge_requests/7"
+    )
+    respx.get(
+        f"{base}/diffs",
+        params={"page": "1", "per_page": "100"},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "old_path": "a.py",
+                    "new_path": "a.py",
+                    "diff": "@@ -1 +1 @@\n-a\n+b",
+                },
+                {
+                    "old_path": "b.py",
+                    "new_path": "b.py",
+                    "diff": "",
+                },
+            ],
+        )
+    )
+    changes = respx.get(f"{base}/changes").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "overflow": False,
+                "changes": [
+                    {
+                        "old_path": "a.py",
+                        "new_path": "a.py",
+                        "diff": "@@ -1 +1 @@\n-a\n+b",
+                    },
+                    {
+                        "old_path": "b.py",
+                        "new_path": "b.py",
+                        "diff": "@@ -1 +1 @@\n-c\n+d",
+                    },
+                ],
+            },
+        )
+    )
+    client = GitLabClient("https://gitlab.example.com/api/v4", "token")
+    try:
+        files = await DiffService(client).get_diffs("group/delta", 7)
+    finally:
+        await client.close()
+
+    assert changes.called
+    assert changes.calls[0].request.url.params["access_raw_diffs"] == "true"
+    assert [file.diff for file in files] == [
+        "@@ -1 +1 @@\n-a\n+b",
+        "@@ -1 +1 @@\n-c\n+d",
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_keeps_paginated_diffs_when_nothing_is_truncated() -> None:
+    base = (
+        "https://gitlab.example.com/api/v4/projects/group%2Fdelta/"
+        "merge_requests/8"
+    )
+    respx.get(
+        f"{base}/diffs",
+        params={"page": "1", "per_page": "100"},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "old_path": "a.py",
+                    "new_path": "a.py",
+                    "diff": "@@ -1 +1 @@\n-a\n+b",
+                }
+            ],
+        )
+    )
+    changes = respx.get(f"{base}/changes")
+    client = GitLabClient("https://gitlab.example.com/api/v4", "token")
+    try:
+        files = await DiffService(client).get_diffs("group/delta", 8)
+    finally:
+        await client.close()
+
+    assert not changes.called
+    assert files[0].new_path == "a.py"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_keeps_paginated_diffs_when_raw_refetch_fails() -> None:
+    base = (
+        "https://gitlab.example.com/api/v4/projects/group%2Fdelta/"
+        "merge_requests/9"
+    )
+    respx.get(
+        f"{base}/diffs",
+        params={"page": "1", "per_page": "100"},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "old_path": "a.py",
+                    "new_path": "a.py",
+                    "diff": "",
+                }
+            ],
+        )
+    )
+    changes = respx.get(f"{base}/changes").mock(
+        return_value=httpx.Response(403, json={"message": "Forbidden"})
+    )
+    client = GitLabClient("https://gitlab.example.com/api/v4", "token")
+    try:
+        files = await DiffService(client).get_diffs("group/delta", 9)
+    finally:
+        await client.close()
+
+    assert changes.called
+    assert files[0].new_path == "a.py"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_get_merge_request_returns_typed_metadata() -> None:
     respx.get(
         "https://gitlab.com/api/v4/projects/group%2Fdelta/merge_requests/7"

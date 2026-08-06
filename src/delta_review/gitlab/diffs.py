@@ -23,6 +23,29 @@ class DiffService:
         )
         return MergeRequest.model_validate(payload)
 
+    async def _raw_changes(
+        self, merge_request_path: str
+    ) -> list[dict] | None:
+        """Read every diff straight from the repository.
+
+        GitLab applies its diff size budget across the whole merge request,
+        so files past the budget come back without any content and without a
+        ``too_large`` or ``collapsed`` flag. ``access_raw_diffs`` bypasses the
+        budget. Returns ``None`` when the retry is unavailable, leaving the
+        truncated diffs in place rather than losing them.
+        """
+        try:
+            payload = await self._client.request(
+                "GET",
+                f"{merge_request_path}/changes",
+                params={"access_raw_diffs": "true"},
+            )
+        except GitLabError:
+            return None
+        if payload.get("overflow"):
+            return None
+        return payload.get("changes") or None
+
     async def get_diffs(self, project: str, mr_iid: int) -> list[DiffFile]:
         merge_request_path = self._merge_request_path(project, mr_iid)
         try:
@@ -51,4 +74,9 @@ class DiffService:
                         "diff_truncated",
                     )
             raw_files = payload.get("changes", [])
+        else:
+            if any(not file.get("diff") for file in raw_files):
+                raw_files = (
+                    await self._raw_changes(merge_request_path) or raw_files
+                )
         return [DiffFile.model_validate(file) for file in raw_files]
