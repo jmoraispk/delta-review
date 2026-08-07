@@ -29,6 +29,14 @@ import {
   highlightDragRange,
   type DragLineTarget,
 } from './dragSelection'
+import {
+  bundleCacheKey,
+  cachedBundle,
+  requestBundle,
+  workersAvailable,
+  type DiffMode,
+  type DiffTheme,
+} from './diffWorkerClient'
 import { DiscussionThread } from './DiscussionThread'
 import {
   discussionRange,
@@ -120,13 +128,7 @@ function WidgetCloseCapture({
 }
 
 type DiffData = ReturnType<typeof toDiffData>
-type DiffBundle = ReturnType<ParsedDiffFile['_getFullBundle']>
-type DiffTheme = 'light' | 'dark'
 
-const processedDiffCache = new WeakMap<
-  DiffFile,
-  Partial<Record<DiffTheme, DiffBundle>>
->()
 const EMPTY_EXTEND_DATA: DiscussionExtensionData = {
   oldFile: {},
   newFile: {},
@@ -134,13 +136,14 @@ const EMPTY_EXTEND_DATA: DiscussionExtensionData = {
 
 function processDiff(
   data: DiffData,
-  theme: 'light' | 'dark',
+  theme: DiffTheme,
+  mode: DiffMode,
 ): ParsedDiffFile {
   const diffFile = ParsedDiffFile.createInstance(data)
   diffFile.initTheme(theme)
   diffFile.initRaw()
-  diffFile.buildSplitDiffLines()
-  diffFile.buildUnifiedDiffLines()
+  if (mode === 'split') diffFile.buildSplitDiffLines()
+  else diffFile.buildUnifiedDiffLines()
   return diffFile
 }
 
@@ -184,61 +187,33 @@ export function DiffViewer({
 
   useEffect(() => {
     let active = true
+    const key = bundleCacheKey(file.new_path || file.old_path, theme, mode)
+    const hit = cachedBundle(key)
+    if (hit !== undefined) {
+      setProcessedDiff(ParsedDiffFile.createInstance(diffData, hit))
+      return
+    }
+
+    if (!workersAvailable()) {
+      setProcessedDiff(processDiff(diffData, theme, mode))
+      return
+    }
+
     setProcessedDiff(null)
-
-    const cachedBundle = processedDiffCache.get(file)?.[theme]
-    if (cachedBundle) {
-      setProcessedDiff(
-        ParsedDiffFile.createInstance(diffData, cachedBundle),
-      )
-      return
-    }
-
-    const rememberBundle = (bundle: DiffBundle) => {
-      const bundles = processedDiffCache.get(file) ?? {}
-      bundles[theme] = bundle
-      processedDiffCache.set(file, bundles)
-    }
-
-    if (typeof Worker === 'undefined') {
-      const parsed = processDiff(diffData, theme)
-      rememberBundle(parsed._getFullBundle())
-      setProcessedDiff(parsed)
-      return
-    }
-
-    const worker = new Worker(
-      new URL('./diffWorker.ts', import.meta.url),
-      { type: 'module' },
-    )
-    const fallback = () => {
-      worker.terminate()
-      if (!active) return
-      const parsed = processDiff(diffData, theme)
-      rememberBundle(parsed._getFullBundle())
-      setProcessedDiff(parsed)
-    }
-    const fallbackTimer = window.setTimeout(fallback, 2_000)
-    worker.onmessage = (
-      event: MessageEvent<{ bundle: DiffBundle }>,
-    ) => {
-      if (!active) return
-      window.clearTimeout(fallbackTimer)
-      rememberBundle(event.data.bundle)
-      setProcessedDiff(
-        ParsedDiffFile.createInstance(diffData, event.data.bundle),
-      )
-    }
-    worker.onerror = fallback
-    worker.onmessageerror = fallback
-    worker.postMessage({ data: diffData, theme })
+    requestBundle(key, diffData, theme, mode)
+      .then((bundle) => {
+        if (!active) return
+        setProcessedDiff(ParsedDiffFile.createInstance(diffData, bundle))
+      })
+      .catch(() => {
+        if (!active) return
+        setProcessedDiff(processDiff(diffData, theme, mode))
+      })
 
     return () => {
       active = false
-      window.clearTimeout(fallbackTimer)
-      worker.terminate()
     }
-  }, [diffData, file, theme])
+  }, [diffData, file, mode, theme])
 
   useEffect(() => {
     setSelection(null)

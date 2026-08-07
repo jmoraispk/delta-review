@@ -15,13 +15,16 @@ interface DiffData {
 }
 
 interface WorkerRequest {
+  id: number
   data: DiffData
   theme: 'light' | 'dark'
+  mode: 'unified' | 'split'
 }
 
 interface WorkerScope {
   onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null
   postMessage: (message: {
+    id: number
     bundle: ReturnType<DiffFile['_getFullBundle']>
   }) => void
 }
@@ -32,7 +35,11 @@ workerScope.onmessage = ({ data: request }) => {
   const diffFile = DiffFile.createInstance(request.data)
   diffFile.initTheme(request.theme)
   diffFile.initRaw()
-  diffFile.buildSplitDiffLines()
-  diffFile.buildUnifiedDiffLines()
-  workerScope.postMessage({ bundle: diffFile._getFullBundle() })
+  // Build only what is on screen; the other mode is a separate cache key.
+  if (request.mode === 'split') diffFile.buildSplitDiffLines()
+  else diffFile.buildUnifiedDiffLines()
+  workerScope.postMessage({
+    id: request.id,
+    bundle: diffFile._getFullBundle(),
+  })
 }
