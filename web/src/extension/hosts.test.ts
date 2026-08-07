@@ -23,11 +23,11 @@ const config = {
 }
 
 beforeEach(() => {
-  for (const key of Object.keys(fake.data)) delete fake.data[key]
+  fake.reset()
 })
 
 test('an id is derived from the host', () => {
-  expect(hostIdFor('gitlab.example.com')).toBe('gitlab.example.com')
+  expect(hostIdFor('  GitLab.Example.COM  ')).toBe('gitlab.example.com')
 })
 
 test('saving then listing round-trips', async () => {
@@ -55,5 +55,6 @@ test('removing a host wipes its token', async () => {
 
 test('tokens live under a separate storage key from configs', async () => {
   await saveHost(config, 'secret')
+  await expect(getToken(config.id)).resolves.toBe('secret')
   expect(JSON.stringify(fake.data.hosts)).not.toContain('secret')
 })
