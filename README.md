@@ -80,6 +80,10 @@ The extension authenticates with a GitLab personal access token scoped to
 version continues to work exactly as before and needs no token — it reuses
 `glab`.
 
+Publishing it is documented in [docs/extension-release.md](./docs/extension-release.md):
+signing key, extension ID, repository secrets, and how to tag a release and
+check that it installs and updates.
+
 ## Current scope
 
 DeltaReview reads text diffs and lets you create, reply to, resolve, and

@@ -59,6 +59,10 @@ rather than just passing or failing it.
     once: `web/src/index.css` carries a legacy light-default palette alongside
     the real dark one, and the hub originally drew from the wrong set,
     rendering near-black text on a near-black background.
+Checks 20–22 cannot run until the signing key exists and a release has been
+published — see `docs/extension-release.md`. Until then they are *blocked*,
+not failed.
+
 20. **Chrome's `normal_installed` leaves the extension user-removable.** After
     running the policy install from `docs/install/index.html`, open
     `chrome://extensions` and confirm Delta can still be disabled and removed.
