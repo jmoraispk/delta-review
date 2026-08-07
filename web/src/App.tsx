@@ -13,6 +13,8 @@ import { FileTree } from './review/FileTree'
 import { diffStats, diffStatsLabel } from './review/diffStats'
 import { projectUrlFrom } from './review/projectUrl'
 import type { ScrollRequest } from './review/DiffStream'
+import { MODE_KEY, ReviewToolbar } from './review/ReviewToolbar'
+import type { DiffMode } from './review/diffWorkerClient'
 import {
   discussionsQueryKey,
   mergeFetchedDiscussions,
@@ -38,6 +40,12 @@ export function App() {
     null,
   )
   const scrollNonce = useRef(0)
+  // The review controls live in the header, so their state lives here.
+  const [mode, setMode] = useState<DiffMode>(() =>
+    localStorage.getItem(MODE_KEY) === 'split' ? 'split' : 'unified',
+  )
+  const [showComments, setShowComments] = useState(false)
+  const [inlineCount, setInlineCount] = useState(0)
   const [showGeneralDiscussions, setShowGeneralDiscussions] =
     useState(false)
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
@@ -275,6 +283,7 @@ export function App() {
               <h1>{mergeRequest.data.title}</h1>
             </div>
             <div className="heading-actions">
+              <div className="heading-actions-primary">
               <a
                 className="gitlab-link"
                 href={mergeRequest.data.web_url}
@@ -323,6 +332,16 @@ export function App() {
                   Review could not be fully updated.
                 </span>
               ) : null}
+              </div>
+              <ReviewToolbar
+                inlineCount={inlineCount}
+                mode={mode}
+                showComments={showComments}
+                onModeChange={setMode}
+                onToggleComments={() =>
+                  setShowComments((visible) => !visible)
+                }
+              />
             </div>
           </section>
 
@@ -353,9 +372,13 @@ export function App() {
                 activeIndex={activeFileIndex}
                 discussions={discussions.data ?? []}
                 files={diffs.data}
+                mode={mode}
                 scrollRef={diffFocusRef}
                 scrollRequest={scrollRequest}
+                showComments={showComments}
                 onActiveIndexChange={setRequestedFileIndex}
+                onInlineCountChange={setInlineCount}
+                onRequestShowComments={() => setShowComments(true)}
               />
             </Suspense>
           ) : (

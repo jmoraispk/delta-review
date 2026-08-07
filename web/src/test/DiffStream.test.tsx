@@ -25,6 +25,8 @@ test('renders a header for every changed file', () => {
   render(
     <DiffStream
       activeIndex={0}
+      mode="unified"
+      showComments={false}
       files={files}
       scrollRef={createRef<HTMLElement>()}
       onActiveIndexChange={() => undefined}
@@ -44,6 +46,8 @@ test('keeps the rendered file count far below the total', () => {
   render(
     <DiffStream
       activeIndex={0}
+      mode="unified"
+      showComments={false}
       files={files}
       scrollRef={createRef<HTMLElement>()}
       onActiveIndexChange={() => undefined}
@@ -61,6 +65,8 @@ test('reserves the full estimated height for the whole merge request', () => {
   const { container } = render(
     <DiffStream
       activeIndex={0}
+      mode="unified"
+      showComments={false}
       files={files}
       scrollRef={createRef<HTMLElement>()}
       onActiveIndexChange={() => undefined}
@@ -74,11 +80,13 @@ test('reserves the full estimated height for the whole merge request', () => {
   )
 })
 
-test('shares one toolbar across every file', () => {
+test('leaves the review controls to the header', () => {
   const files = [file('src/a.ts'), file('src/b.ts')]
   render(
     <DiffStream
       activeIndex={0}
+      mode="unified"
+      showComments={false}
       files={files}
       scrollRef={createRef<HTMLElement>()}
       onActiveIndexChange={() => undefined}
@@ -86,9 +94,9 @@ test('shares one toolbar across every file', () => {
     { wrapper: TestProviders },
   )
 
-  expect(screen.getAllByRole('toolbar', { name: 'Review controls' })).toHaveLength(
-    1,
-  )
+  expect(
+    screen.queryByRole('toolbar', { name: 'Review controls' }),
+  ).toBeNull()
 })
 
 // Scroll-driven reporting needs real layout, so it is covered by
@@ -102,6 +110,8 @@ test('reports the topmost rendered file as active', () => {
   render(
     <DiffStream
       activeIndex={7}
+      mode="unified"
+      showComments={false}
       files={files}
       scrollRef={createRef<HTMLElement>()}
       onActiveIndexChange={onActiveIndexChange}

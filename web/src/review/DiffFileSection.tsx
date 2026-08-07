@@ -514,7 +514,7 @@ export function DiffFileSection({
 
   if (file.too_large || file.collapsed) {
     return (
-      <section className="diff-stage unavailable-diff">
+      <section className="diff-stage unavailable-diff" data-diff-ready="true">
         <header className="diff-header">
           <strong title={file.new_path}>{file.new_path}</strong>
         </header>
@@ -543,7 +543,7 @@ export function DiffFileSection({
   }
 
   return (
-      <section className="diff-stage" aria-label={file.new_path}>
+      <section className="diff-stage" aria-label={file.new_path} data-diff-ready="true">
       <header className="diff-header">
         <div className="diff-file-identity">
           <span className="language-dot" aria-hidden="true" />

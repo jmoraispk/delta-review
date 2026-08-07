@@ -10,7 +10,6 @@ import {
 
 import type { DiffFile, Discussion } from '../api/types'
 import { DiffFileSection } from './DiffFileSection'
-import { MODE_KEY, ReviewToolbar } from './ReviewToolbar'
 import { estimateSectionHeight } from './diffMetrics'
 import { preferredTheme, watchTheme } from './diffTheme'
 import type { DiffMode } from './diffWorkerClient'
@@ -29,8 +28,13 @@ export interface DiffStreamProps {
   files: DiffFile[]
   discussions?: Discussion[]
   activeIndex: number
+  /** Owned by the app so the review controls can sit in the header. */
+  mode: DiffMode
+  showComments: boolean
   scrollRequest?: ScrollRequest | null
   onActiveIndexChange: (index: number) => void
+  onInlineCountChange?: (count: number) => void
+  onRequestShowComments?: () => void
   scrollRef: RefObject<HTMLElement | null>
 }
 
@@ -38,15 +42,15 @@ export function DiffStream({
   files,
   discussions = [],
   activeIndex,
+  mode,
+  showComments,
   scrollRequest = null,
   onActiveIndexChange,
+  onInlineCountChange,
+  onRequestShowComments,
   scrollRef,
 }: DiffStreamProps) {
-  const [mode, setMode] = useState<DiffMode>(() =>
-    localStorage.getItem(MODE_KEY) === 'split' ? 'split' : 'unified',
-  )
   const [theme, setTheme] = useState(preferredTheme)
-  const [showComments, setShowComments] = useState(false)
   const [inlineCounts, setInlineCounts] = useState<Record<number, number>>({})
 
   useEffect(() => watchTheme(setTheme), [])
@@ -67,6 +71,10 @@ export function DiffStream({
     () => Object.values(inlineCounts).reduce((total, count) => total + count, 0),
     [inlineCounts],
   )
+
+  useEffect(() => {
+    onInlineCountChange?.(inlineCount)
+  }, [inlineCount, onInlineCountChange])
 
   const items = virtualizer.getVirtualItems()
   // Before the scroll container has a measured height the virtualizer yields
@@ -174,11 +182,22 @@ export function DiffStream({
     if (first.index !== activeIndex) onActiveIndexChange(first.index)
   }, [activeIndex, items, onActiveIndexChange, scrollOffset])
 
-  // A zero-height measurement means the section is not laid out yet; taking
-  // it would collapse the reserved space and wreck the scrollbar.
+  // A zero-height measurement means the section is not laid out yet; taking it
+  // would collapse the reserved space and wreck the scrollbar. Sub-pixel
+  // differences from the estimate are ignored too: applying them re-flows
+  // every offset below, which drags a scroll target around while it settles.
   const measureSection = useCallback(
     (element: HTMLElement | null) => {
-      if (!element || element.getBoundingClientRect().height === 0) return
+      if (!element) return
+      // A section still building its diff shows a short placeholder. Recording
+      // that would tell the virtualizer the file is a fraction of its real
+      // size, and every offset past it would be wrong.
+      if (!element.querySelector('[data-diff-ready="true"]')) return
+      const height = element.getBoundingClientRect().height
+      if (height === 0) return
+      const index = Number(element.dataset.index)
+      const known = virtualizer.measurementsCache[index]?.size
+      if (known !== undefined && Math.abs(known - height) < 8) return
       virtualizer.measureElement(element)
     },
     [virtualizer],
@@ -191,14 +210,6 @@ export function DiffStream({
   }, [])
 
   return (
-    <>
-      <ReviewToolbar
-        inlineCount={inlineCount}
-        mode={mode}
-        showComments={showComments}
-        onModeChange={setMode}
-        onToggleComments={() => setShowComments((visible) => !visible)}
-      />
       <div
         className="diff-stream"
         style={
@@ -250,13 +261,12 @@ export function DiffStream({
                   onInlineCountChange={(count) =>
                     reportInlineCount(item.index, count)
                   }
-                  onRequestShowComments={() => setShowComments(true)}
+                  onRequestShowComments={onRequestShowComments}
                 />
               </div>
             )
           })}
         </div>
       </div>
-    </>
   )
 }
