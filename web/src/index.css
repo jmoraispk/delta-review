@@ -232,10 +232,21 @@ a:focus-visible {
   font-size: 12px;
 }
 
-.repository-context > span:first-child {
+.repository-context > :first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.context-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.context-link:hover,
+.context-link:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 .repository-context strong {

@@ -11,6 +11,7 @@ import type {
 import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
 import { diffStats, diffStatsLabel } from './review/diffStats'
+import { projectUrlFrom } from './review/projectUrl'
 import {
   discussionsQueryKey,
   mergeFetchedDiscussions,
@@ -130,6 +131,7 @@ export function App() {
   )
   const activeFile = diffs.data[activeFileIndex]
   const threadCount = discussions.data?.length ?? 0
+  const projectUrl = projectUrlFrom(mergeRequest.data.web_url)
 
   async function updateReview() {
     const activeFilePath = activeFile?.new_path ?? activeFile?.old_path
@@ -174,11 +176,29 @@ export function App() {
           <span>delta</span>
         </a>
         <div className="repository-context">
-          <span>{config.data.project}</span>
+          {projectUrl ? (
+            <a
+              className="context-link"
+              href={projectUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {config.data.project}
+            </a>
+          ) : (
+            <span>{config.data.project}</span>
+          )}
           <span className="separator" aria-hidden="true">
             /
           </span>
-          <strong>!{mergeRequest.data.iid}</strong>
+          <a
+            className="context-link"
+            href={mergeRequest.data.web_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <strong>!{mergeRequest.data.iid}</strong>
+          </a>
         </div>
         <div className="topbar-meta">
           <span className="connection-dot" aria-hidden="true" />
