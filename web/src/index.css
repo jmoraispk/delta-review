@@ -352,18 +352,120 @@ a:focus-visible {
 .file-row {
   position: relative;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
-  min-height: 36px;
+  min-height: 30px;
   align-items: center;
   gap: 7px;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   text-align: left;
+}
+
+.dir-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dir-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ink);
+}
+
+.dir-chevron {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.dir-name {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-count {
+  font-family: var(--mono);
+  font-size: 9px;
+  opacity: 0.55;
+}
+
+.file-name {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-status-square {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  place-items: center;
+  border: 1px solid currentcolor;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.file-status-square.is-added {
+  color: var(--success);
+}
+
+.file-status-square.is-deleted {
+  color: var(--danger);
+}
+
+.file-status-square.is-moved,
+.file-status-square.is-modified {
+  color: var(--warning);
+}
+
+.file-status-square.is-blocked {
+  color: var(--muted);
+}
+
+.change-summary {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.change-summary .count-new {
+  color: var(--success);
+}
+
+.change-summary .count-del {
+  color: var(--danger);
+}
+
+.change-summary .count-mov {
+  color: var(--warning);
 }
 
 .file-row-meta {
@@ -1225,7 +1327,8 @@ button.primary-action {
   padding: 0;
 }
 
-.virtual-file-list .file-row {
+.virtual-file-list .file-row,
+.virtual-file-list .dir-row {
   position: absolute;
   top: 0;
   left: 0;

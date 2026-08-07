@@ -79,6 +79,15 @@ export function App() {
       ),
     [diffs.data],
   )
+  const changeSummary = useMemo(() => {
+    const counts = { added: 0, deleted: 0, moved: 0 }
+    for (const file of diffs.data ?? []) {
+      if (file.new_file) counts.added += 1
+      else if (file.deleted_file) counts.deleted += 1
+      else if (file.renamed_file) counts.moved += 1
+    }
+    return counts
+  }, [diffs.data])
   const generalDiscussions = useMemo(
     () =>
       (discussions.data ?? []).filter((discussion) =>
@@ -192,6 +201,24 @@ export function App() {
                 </span>
                 <span className="stat-deletion" aria-hidden="true">
                   −{totalChanges.deletions}
+                </span>
+              </span>
+              <span
+                className="change-summary"
+                aria-label={
+                  `${changeSummary.added} new, ` +
+                  `${changeSummary.deleted} deleted, ` +
+                  `${changeSummary.moved} moved`
+                }
+              >
+                <span className="count-new" aria-hidden="true">
+                  {changeSummary.added} new
+                </span>
+                <span className="count-del" aria-hidden="true">
+                  {changeSummary.deleted} del
+                </span>
+                <span className="count-mov" aria-hidden="true">
+                  {changeSummary.moved} mov
                 </span>
               </span>
             </div>

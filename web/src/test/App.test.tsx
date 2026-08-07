@@ -134,7 +134,7 @@ test('updates all review data and retains the active file after reordering', asy
     ),
   ).toBeVisible()
   fireEvent.keyDown(
-    screen.getByRole('button', { name: /src\/parser.py/ }),
+    screen.getByRole('button', { name: /^parser\.py/ }),
     { key: 'ArrowDown' },
   )
   expect(
@@ -270,7 +270,7 @@ test('clears the Update status when selecting another file', async () => {
   expect(await screen.findByText('Review updated.')).toBeVisible()
 
   fireEvent.keyDown(
-    screen.getByRole('button', { name: /src\/parser.py/ }),
+    screen.getByRole('button', { name: /^parser\.py/ }),
     { key: 'ArrowDown' },
   )
   await screen.findByRole('region', { name: 'src/other.py' })
