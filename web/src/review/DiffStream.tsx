@@ -54,6 +54,17 @@ export function DiffStream({
   )
 
   const items = virtualizer.getVirtualItems()
+  // Before the scroll container has a measured height the virtualizer yields
+  // nothing. Render a small window in normal flow so the first paint, and any
+  // environment without layout, still shows the file being read.
+  const unmeasured = items.length === 0 && files.length > 0
+  const fallbackWindow = useMemo(() => {
+    if (!unmeasured) return []
+    const first = Math.min(Math.max(0, activeIndex), files.length - 1)
+    return Array.from({ length: 3 }, (_, offset) => first + offset).filter(
+      (index) => index < files.length,
+    )
+  }, [activeIndex, files.length, unmeasured])
 
   // The topmost section still on screen is the file being read.
   useEffect(() => {
@@ -97,9 +108,16 @@ export function DiffStream({
       />
       <div
         className="diff-stream"
-        style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
+        style={
+          unmeasured
+            ? undefined
+            : { height: virtualizer.getTotalSize(), position: 'relative' }
+        }
       >
-        {items.map((item) => {
+        {(unmeasured
+          ? fallbackWindow.map((index) => ({ index, start: 0 }))
+          : items
+        ).map((item) => {
           const file = files[item.index]
           if (!file) return null
           return (
@@ -109,13 +127,17 @@ export function DiffStream({
               data-index={item.index}
               key={`${file.old_path}:${file.new_path}`}
               ref={measureSection}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${item.start}px)`,
-              }}
+              style={
+                unmeasured
+                  ? undefined
+                  : {
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${item.start}px)`,
+                    }
+              }
             >
               <DiffFileSection
                 discussions={discussions}

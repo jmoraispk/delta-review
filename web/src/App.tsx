@@ -17,9 +17,9 @@ import {
   mergeFetchedDiscussions,
 } from './review/discussionCache'
 
-const DiffViewer = lazy(() =>
-  import('./review/DiffViewer').then((module) => ({
-    default: module.DiffViewer,
+const DiffStream = lazy(() =>
+  import('./review/DiffStream').then((module) => ({
+    default: module.DiffStream,
   })),
 )
 const GeneralDiscussionsPanel = lazy(() =>
@@ -342,10 +342,12 @@ export function App() {
                 </section>
               }
             >
-              <DiffViewer
-                key={`${activeFile.old_path}:${activeFile.new_path}`}
-                file={activeFile}
+              <DiffStream
+                activeIndex={activeFileIndex}
                 discussions={discussions.data ?? []}
+                files={diffs.data}
+                scrollRef={diffFocusRef}
+                onActiveIndexChange={setRequestedFileIndex}
               />
             </Suspense>
           ) : (
