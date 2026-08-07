@@ -20,10 +20,12 @@ import { CommentComposer } from './CommentComposer'
 import { toDiffData } from './diffAdapter'
 import { diffStats, diffStatsLabel } from './diffStats'
 import {
+  clearContextPreview,
   clearDragHighlight,
   dragStartFromElement,
   dragTargetFromElement,
   findCommentButton,
+  highlightContextPreview,
   highlightDragRange,
   type DragLineTarget,
 } from './dragSelection'
@@ -53,6 +55,11 @@ interface ActiveDrag {
   current: DragLineTarget
   moved: boolean
   openOnRelease: boolean
+  /**
+   * Drags that begin over code stay dormant until they cross a line, so a
+   * short horizontal drag still selects text for copying.
+   */
+  fromCode: boolean
 }
 
 export interface DiffViewerProps {
@@ -259,6 +266,25 @@ export function DiffViewer({
     onSelectionChange?.(selection)
   }, [onSelectionChange, selection])
 
+  // Show the excerpt GitLab will render above a single-line comment.
+  useEffect(() => {
+    const root = diffLibraryRef.current
+    if (!root) return
+    clearContextPreview(root)
+    if (!selection) return
+
+    const side = selection.end.side
+    const lineOf = (point: SelectionRange['end']) =>
+      side === 'new'
+        ? (point.newLine ?? point.oldLine)
+        : (point.oldLine ?? point.newLine)
+    const anchor = lineOf(selection.end)
+    if (anchor === null || lineOf(selection.start) !== anchor) return
+
+    highlightContextPreview(root, { lineNumber: anchor, side })
+    return () => clearContextPreview(root)
+  }, [mode, processedDiff, selection])
+
   useEffect(() => {
     const root = diffLibraryRef.current
     if (!showComments || !root) return
@@ -381,6 +407,7 @@ export function DiffViewer({
     pendingDragSelectionRef.current = null
     if (diffLibraryRef.current) {
       clearDragHighlight(diffLibraryRef.current)
+      clearContextPreview(diffLibraryRef.current)
     }
     widgetCloseRef.current?.()
     widgetCloseRef.current = null
@@ -421,13 +448,17 @@ export function DiffViewer({
 
     setFallbackNotice(null)
     closeComposer()
+    const fromCode = start.origin === 'code'
     activeDragRef.current = {
       pointerId: event.pointerId,
       start: start.target,
       current: start.target,
       moved: false,
       openOnRelease: start.origin === 'comment-button',
+      fromCode,
     }
+    if (fromCode) return
+
     highlightDragRange(event.currentTarget, start.target, start.target)
     event.currentTarget.setPointerCapture?.(event.pointerId)
     event.preventDefault()
@@ -438,9 +469,17 @@ export function DiffViewer({
     if (!drag || drag.pointerId !== event.pointerId) return
     const target = pointerTarget(event)
     if (!target || target.side !== drag.start.side) return
+    const crossedLine = target.lineNumber !== drag.start.lineNumber
+    // A drag that began over code only claims the pointer once it leaves the
+    // line it started on; until then the browser keeps selecting text.
+    if (drag.fromCode && !drag.moved && !crossedLine) return
+    if (drag.fromCode && !drag.moved) {
+      document.getSelection()?.removeAllRanges()
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    }
 
     drag.current = target
-    drag.moved ||= target.lineNumber !== drag.start.lineNumber
+    drag.moved ||= crossedLine
     highlightDragRange(event.currentTarget, drag.start, target)
     event.preventDefault()
   }
@@ -449,6 +488,8 @@ export function DiffViewer({
     const drag = activeDragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
     activeDragRef.current = null
+    // A code drag that never crossed a line was a text selection, not ours.
+    if (drag.fromCode && !drag.moved) return
     event.currentTarget.releasePointerCapture?.(event.pointerId)
     event.preventDefault()
 

@@ -541,16 +541,22 @@ a:focus-visible {
 }
 
 .merge-request-heading h1 {
+  display: -webkit-box;
   overflow: hidden;
   margin: 7px 0 0;
+  /* The clamp box rounds down to whole line boxes and would shave descenders. */
+  padding-bottom: 2px;
+  -webkit-box-orient: vertical;
   color: var(--ink);
   font-family: var(--display);
   font-size: clamp(20px, 2.2vw, 29px);
   font-weight: 660;
+  -webkit-line-clamp: 3;
   letter-spacing: -0.035em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Room for descenders on the last line, which the clamp box would clip. */
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .heading-actions {
@@ -1413,6 +1419,20 @@ button.primary-action {
 
 .diff-library .diff-line.delta-drag-selected .diff-line-content {
   filter: brightness(1.08);
+}
+
+/* The excerpt GitLab renders above a single-line comment. */
+.diff-library .diff-line.delta-context-preview .diff-line-num,
+.diff-library .diff-line.delta-context-preview .diff-line-old-num,
+.diff-library .diff-line.delta-context-preview .diff-line-new-num {
+  box-shadow: inset 2px 0 rgba(64, 214, 178, 0.28);
+}
+
+.diff-library .diff-line.delta-context-preview .diff-line-content {
+  background-image: linear-gradient(
+    rgba(64, 214, 178, 0.05),
+    rgba(64, 214, 178, 0.05)
+  );
 }
 
 .diff-library .diff-line.delta-discussion-range .diff-line-num,

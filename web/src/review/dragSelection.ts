@@ -7,10 +7,19 @@ export interface DragLineTarget {
 
 export interface DragStart {
   target: DragLineTarget
-  origin: 'gutter' | 'comment-button'
+  origin: 'gutter' | 'comment-button' | 'code'
 }
 
 const SELECTED_CLASS = 'delta-drag-selected'
+const CONTEXT_CLASS = 'delta-context-preview'
+
+/** Lines GitLab shows above an inline comment when it renders a thread. */
+export const CONTEXT_PREVIEW_LINES = 16
+
+const MARKER_SELECTOR =
+  '[data-line-old-num], [data-line-new-num], [data-line-num]'
+const GUTTER_SELECTOR =
+  '.diff-line-num, .diff-line-old-num, .diff-line-new-num'
 
 export function dragStartFromElement(
   element: Element | null,
@@ -41,7 +50,9 @@ export function dragStartFromElement(
   }
 
   const target = dragTargetFromElement(element)
-  return target ? { target, origin: 'gutter' } : null
+  if (!target) return null
+  const origin = element?.closest(GUTTER_SELECTOR) ? 'gutter' : 'code'
+  return { target, origin }
 }
 
 export function dragTargetFromElement(
@@ -53,17 +64,14 @@ export function dragTargetFromElement(
   ) {
     return null
   }
-  const gutter = element.closest<HTMLElement>(
-    '.diff-line-num, .diff-line-old-num, .diff-line-new-num',
-  )
+  const gutter = element.closest<HTMLElement>(GUTTER_SELECTOR)
+  // Code cells carry no line markers, so fall back to the row that holds them.
+  const row = element.closest<HTMLElement>('.diff-line')
   const marker =
-    element.closest<HTMLElement>(
-      '[data-line-old-num], [data-line-new-num], [data-line-num]',
-    ) ??
-    gutter?.querySelector<HTMLElement>(
-      '[data-line-old-num], [data-line-new-num], [data-line-num]',
-    )
-  if (!marker || !gutter) {
+    element.closest<HTMLElement>(MARKER_SELECTOR) ??
+    gutter?.querySelector<HTMLElement>(MARKER_SELECTOR) ??
+    row?.querySelector<HTMLElement>(MARKER_SELECTOR)
+  if (!marker || !(gutter || row)) {
     return null
   }
 
@@ -87,6 +95,32 @@ export function dragTargetFromElement(
     : null
 }
 
+function markRange(
+  root: HTMLElement,
+  side: DragLineTarget['side'],
+  minimum: number,
+  maximum: number,
+  className: string,
+): void {
+  const unifiedAttribute =
+    side === 'old' ? 'data-line-old-num' : 'data-line-new-num'
+  const markers = [
+    ...root.querySelectorAll<HTMLElement>(`[${unifiedAttribute}]`),
+    ...root.querySelectorAll<HTMLElement>(
+      `.diff-line[data-side="${side}"] [data-line-num]`,
+    ),
+  ]
+
+  for (const marker of markers) {
+    const lineNumber = Number(
+      marker.getAttribute(unifiedAttribute) ??
+        marker.getAttribute('data-line-num'),
+    )
+    if (lineNumber < minimum || lineNumber > maximum) continue
+    marker.closest('.diff-line')?.classList.add(className)
+  }
+}
+
 export function clearDragHighlight(root: HTMLElement): void {
   for (const row of root.querySelectorAll(`.${SELECTED_CLASS}`)) {
     row.classList.remove(SELECTED_CLASS)
@@ -101,25 +135,33 @@ export function highlightDragRange(
   clearDragHighlight(root)
   if (start.side !== end.side) return
 
-  const minimum = Math.min(start.lineNumber, end.lineNumber)
-  const maximum = Math.max(start.lineNumber, end.lineNumber)
-  const unifiedAttribute =
-    start.side === 'old' ? 'data-line-old-num' : 'data-line-new-num'
-  const markers = [
-    ...root.querySelectorAll<HTMLElement>(`[${unifiedAttribute}]`),
-    ...root.querySelectorAll<HTMLElement>(
-      `.diff-line[data-side="${start.side}"] [data-line-num]`,
-    ),
-  ]
+  markRange(
+    root,
+    start.side,
+    Math.min(start.lineNumber, end.lineNumber),
+    Math.max(start.lineNumber, end.lineNumber),
+    SELECTED_CLASS,
+  )
+}
 
-  for (const marker of markers) {
-    const lineNumber = Number(
-      marker.getAttribute(unifiedAttribute) ??
-        marker.getAttribute('data-line-num'),
-    )
-    if (lineNumber < minimum || lineNumber > maximum) continue
-    marker.closest('.diff-line')?.classList.add(SELECTED_CLASS)
+export function clearContextPreview(root: HTMLElement): void {
+  for (const row of root.querySelectorAll(`.${CONTEXT_CLASS}`)) {
+    row.classList.remove(CONTEXT_CLASS)
   }
+}
+
+/**
+ * Shade the lines GitLab will show above a comment, so a single-line
+ * selection reveals the whole excerpt the posted thread will carry.
+ */
+export function highlightContextPreview(
+  root: HTMLElement,
+  anchor: DragLineTarget,
+  size: number = CONTEXT_PREVIEW_LINES,
+): void {
+  clearContextPreview(root)
+  const first = Math.max(1, anchor.lineNumber - size + 1)
+  markRange(root, anchor.side, first, anchor.lineNumber, CONTEXT_CLASS)
 }
 
 export function findCommentButton(

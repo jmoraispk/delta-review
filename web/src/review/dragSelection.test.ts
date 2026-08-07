@@ -1,10 +1,12 @@
 import { beforeEach, expect, test } from 'vitest'
 
 import {
+  clearContextPreview,
   clearDragHighlight,
   dragStartFromElement,
   dragTargetFromElement,
   findCommentButton,
+  highlightContextPreview,
   highlightDragRange,
 } from './dragSelection'
 
@@ -23,12 +25,14 @@ beforeEach(() => {
           <span data-line-new-num="13">13</span>
           <div data-add-widget="new"><button type="button">+</button></div>
         </div>
+        <div class="diff-line-content"><span>const thirteen = 13;</span></div>
       </div>
       <div class="diff-line" data-state="diff">
         <div class="diff-line-num">
           <span data-line-new-num="14">14</span>
           <div data-add-widget="new"><button type="button">+</button></div>
         </div>
+        <div class="diff-line-content"><span>const fourteen = 14;</span></div>
       </div>
     </div>
   `
@@ -41,9 +45,56 @@ test('reads a selectable side and line from the number gutter', () => {
     lineNumber: 12,
     side: 'new',
   })
-  expect(
-    dragTargetFromElement(document.querySelector('.diff-line')),
-  ).toBeNull()
+})
+
+test('reads a line from the code cell so drags can start over code', () => {
+  const code = document.querySelector('[data-line-new-num="13"]')
+    ?.closest('.diff-line')
+    ?.querySelector('.diff-line-content')
+
+  expect(dragTargetFromElement(code ?? null)).toEqual({
+    lineNumber: 13,
+    side: 'new',
+  })
+  expect(dragStartFromElement(code ?? null)).toEqual({
+    target: { lineNumber: 13, side: 'new' },
+    origin: 'code',
+  })
+})
+
+test('marks a gutter drag apart from one started over code', () => {
+  const gutter = document.querySelector('[data-line-new-num="14"]')
+
+  expect(dragStartFromElement(gutter)).toEqual({
+    target: { lineNumber: 14, side: 'new' },
+    origin: 'gutter',
+  })
+})
+
+test('previews the context lines GitLab shows above a comment', () => {
+  const root = document.querySelector<HTMLElement>('#diff')
+  if (!root) throw new Error('diff root is missing')
+
+  highlightContextPreview(root, { lineNumber: 14, side: 'new' }, 2)
+
+  const previewed = [...root.querySelectorAll('.delta-context-preview')].map(
+    (row) => row.querySelector('[data-line-new-num]')?.textContent,
+  )
+  expect(previewed).toEqual(['13', '14'])
+
+  clearContextPreview(root)
+  expect(root.querySelectorAll('.delta-context-preview')).toHaveLength(0)
+})
+
+test('clamps the context preview at the first line of the file', () => {
+  const root = document.querySelector<HTMLElement>('#diff')
+  if (!root) throw new Error('diff root is missing')
+
+  highlightContextPreview(root, { lineNumber: 13, side: 'new' }, 16)
+
+  // Lines 12 and 13 exist above the anchor; the window clamps rather than
+  // reaching past the top of the file.
+  expect(root.querySelectorAll('.delta-context-preview')).toHaveLength(2)
 })
 
 test('starts a drag from a comment button without allowing other controls', () => {
