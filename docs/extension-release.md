@@ -165,17 +165,56 @@ The AMO credentials drive `web-ext sign --channel unlisted`, which is Mozilla
 signing a self-hosted add-on rather than listing it on AMO. Delta is
 distributed from GitHub releases either way.
 
-One thing to expect on the first submission: `web-ext lint` currently reports
-`MISSING_DATA_COLLECTION_PERMISSIONS` against the Firefox build, because
-`browser_specific_settings.gecko.data_collection_permissions` is missing and
-Mozilla now asks for it on new extensions. It is a warning, not an error, and
-`web-ext sign` fails only on errors — but AMO's own validation is the
-authority, not the local linter. If signing is rejected for this, add
-`"data_collection_permissions": { "required": ["none"] }` under
-`gecko` in `web/src/extension/manifest.firefox.json`. Note that the key needs
-Firefox 140, so with `strict_min_version` at 128 the linter will then warn
-that it is unsupported below the declared minimum — also a warning, and the
-opposite trade of the one above.
+### The data collection declaration
+
+Mozilla requires a data-collection declaration on new extensions, so
+`web/src/extension/manifest.firefox.json` carries this under `gecko`:
+
+```json
+"data_collection_permissions": { "required": ["none"] }
+```
+
+`"none"` is the schema's own token for "collects nothing" — it is a validated
+enum, not free text, so a wrong value fails the lint as `JSON_INVALID` rather
+than passing quietly.
+
+**Why that is true, if AMO asks.** Delta stores a GitLab personal access token
+per host in `browser.storage.local` (`web/src/extension/hosts.ts`) and sends it
+as a `PRIVATE-TOKEN` header to that host's `/api/v4` only
+(`web/src/gitlab/client.ts`), where the host is one the user typed in Settings
+and separately granted an optional host permission for. `GitLabClient` is the
+only thing in the extension bundle that reaches the network: the hub entry
+(`hub.html` → `src/hub-main.tsx`) uses the runtime transport, which forwards
+every call through the background worker, so the HTTP transport that talks to
+the local CLI server is never bundled into the extension. There is no
+Delta-operated backend, no analytics, no telemetry and no remote logging, and
+error strings are scrubbed of the token before they leave the worker
+(`scrubToken` in `web/src/extension/router.ts`). Recheck this before changing
+the declaration — a false statement to Mozilla costs far more than a warning.
+
+The one thing that does phone home is Firefox itself polling `update_url` on
+GitHub for updates. That is the browser, not the extension, and it is inherent
+to self-hosted distribution.
+
+**Two warnings this produces, both expected.** The key needs Firefox 140 (142
+on Android) and `strict_min_version` is `128.0`, so the linter reports
+`KEY_FIREFOX_UNSUPPORTED_BY_MIN_VERSION` and
+`KEY_FIREFOX_ANDROID_UNSUPPORTED_BY_MIN_VERSION`. Leave the minimum at 128:
+`optional_host_permissions` is what pins it there, the declaration is
+store-facing metadata that older Firefox simply ignores, and raising the
+minimum would drop real users for no runtime gain.
+
+**Lint with `--self-hosted`.** Plain `web-ext lint` reports `MANIFEST_UPDATE_URL`
+as an *error*, because `update_url` is banned for add-ons listed on AMO. Delta
+is unlisted and self-hosted, where it is required:
+
+```console
+npm run build:extension --prefix web
+npx --yes web-ext lint --source-dir web/dist-extension/firefox --self-hosted
+```
+
+That reports zero errors. The remaining `UNSAFE_VAR_ASSIGNMENT` warnings come
+from bundled dependency code, not from Delta's own source.
 
 ## 6. Enable GitHub Pages
 
