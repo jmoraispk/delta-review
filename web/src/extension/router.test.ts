@@ -31,6 +31,7 @@ beforeEach(async () => {
 })
 
 test('dispatches a review op', async () => {
+  fake.granted.add('https://gitlab.example.com/*')
   server.use(
     http.get(`${BASE}/projects/p/merge_requests/1`, () =>
       HttpResponse.json({ iid: 1, title: 'x' }),
@@ -42,6 +43,7 @@ test('dispatches a review op', async () => {
 })
 
 test('getConfig is answered from the stored host', async () => {
+  fake.granted.add('https://gitlab.example.com/*')
   await expect(
     handleMessage({ kind: 'delta/review', op: 'getConfig', target: TARGET }),
   ).resolves.toEqual({
@@ -63,7 +65,20 @@ test('an unknown host is a structured error, not a throw', async () => {
   })
 })
 
+// Without the permission check the browser blocks the fetch, the client cannot
+// tell that apart from an outage, and the user is told to wait for GitLab to
+// recover when the real fix is one permission grant.
+test('a revoked host permission on a review op is reported, not fetched blindly', async () => {
+  await expect(
+    handleMessage({ kind: 'delta/review', op: 'getMergeRequest', target: TARGET }),
+  ).resolves.toMatchObject({
+    ok: false,
+    error: { code: 'permission_missing', status: 403 },
+  })
+})
+
 test('a GitLab error becomes the shared envelope', async () => {
+  fake.granted.add('https://gitlab.example.com/*')
   server.use(
     http.get(`${BASE}/projects/p/merge_requests/1`, () =>
       HttpResponse.json({ message: 'nope' }, { status: 401 }),
@@ -82,6 +97,7 @@ test('a GitLab error becomes the shared envelope', async () => {
 })
 
 test('the token is scrubbed out of error text', async () => {
+  fake.granted.add('https://gitlab.example.com/*')
   server.use(
     http.get(`${BASE}/projects/p/merge_requests/1`, () =>
       HttpResponse.json(
@@ -106,11 +122,16 @@ test('scrubToken is a no-op without a token', () => {
 
 test('listHosts never returns a token', async () => {
   const response = await handleMessage({ kind: 'delta/hub', op: 'listHosts' })
+  // Pinned to a real success: an error envelope would satisfy the absence
+  // assertion below on its own.
+  expect(response).toMatchObject({
+    ok: true,
+    data: [{ id: 'gitlab.example.com' }],
+  })
   expect(JSON.stringify(response)).not.toContain('secret-token')
 })
 
 test('a revoked host permission is reported, not fetched blindly', async () => {
-  fake.granted.clear()
   await expect(
     handleMessage({ kind: 'delta/hub', op: 'listMergeRequests' }),
   ).resolves.toMatchObject({
@@ -131,6 +152,7 @@ test('a permitted host is fetched', async () => {
 })
 
 test('an unknown op is rejected', async () => {
+  fake.granted.add('https://gitlab.example.com/*')
   await expect(
     handleMessage({
       kind: 'delta/review',

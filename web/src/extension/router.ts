@@ -56,6 +56,20 @@ async function clientFor(
       'host_not_configured',
     )
   }
+  // The user can revoke a host permission in browser settings at any time.
+  // Without this check the browser blocks the fetch and the client reports it
+  // as `gitlab_unavailable`, telling the user to wait out an outage when the
+  // real fix is one permission grant.
+  const permitted = await browser.permissions.contains({
+    origins: [originFor(host.host)],
+  })
+  if (!permitted) {
+    throw new RouterError(
+      403,
+      'Delta no longer has permission for this GitLab host',
+      'permission_missing',
+    )
+  }
   return { client: new GitLabClient(host.apiBase, token), host, token }
 }
 
@@ -124,25 +138,27 @@ async function runHub(op: string, payload: unknown): Promise<unknown> {
     case 'listMergeRequests': {
       const hosts = await listHosts()
       return Promise.all(
+        // Everything per host lives inside the try, storage and permission
+        // reads included: anything escaping it rejects the Promise.all and
+        // collapses every host into one 500, which is the outcome this
+        // per-host error object exists to avoid.
         hosts.map(async (host) => {
-          const token = await getToken(host.id)
-          if (!token) {
-            return { hostId: host.id, error: 'host_not_configured' as const }
-          }
-          // The user can revoke a host permission in browser settings at any
-          // time; without this check the fetch fails as an opaque network error.
-          const permitted = await browser.permissions.contains({
-            origins: [originFor(host.host)],
-          })
-          if (!permitted) {
-            return {
-              hostId: host.id,
-              host: host.host,
-              error: 'permission_missing' as const,
-            }
-          }
-          const client = new GitLabClient(host.apiBase, token)
           try {
+            const token = await getToken(host.id)
+            if (!token) {
+              return { hostId: host.id, error: 'host_not_configured' as const }
+            }
+            const permitted = await browser.permissions.contains({
+              origins: [originFor(host.host)],
+            })
+            if (!permitted) {
+              return {
+                hostId: host.id,
+                host: host.host,
+                error: 'permission_missing' as const,
+              }
+            }
+            const client = new GitLabClient(host.apiBase, token)
             const [reviewing, authored] = await Promise.all([
               listReviewRequested(client, host.userId),
               listAuthored(client, host.userId),
