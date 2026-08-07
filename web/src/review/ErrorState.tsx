@@ -1,11 +1,23 @@
 import { ApiError } from '../api/client'
+import { useTransport } from '../transport/context'
 
 interface ErrorStateProps {
   error: Error
   onRetry: () => void
 }
 
-function errorCopy(error: Error): {
+/**
+ * The same screen serves two products that hold GitLab credentials in
+ * different places. Under `uvx delta-review` (`targetKey === 'proxy'`) the
+ * token belongs to `glab` and Delta never sees one, so telling that user to
+ * renew Delta's credentials points them at something their install does not
+ * have. In the extension the opposite is true: `glab` need not be installed
+ * at all. Anything that names a credential holder has to say which.
+ */
+function errorCopy(
+  error: Error,
+  isProxy: boolean,
+): {
   heading: string
   guidance: string
   mark: string
@@ -15,9 +27,11 @@ function errorCopy(error: Error): {
   if (code === 'gitlab_authentication_failed') {
     return {
       heading: 'GitLab authentication failed',
-      guidance:
-        'GitLab rejected the credentials Delta holds for this host. Renew ' +
-        'them, then retry.',
+      guidance: isProxy
+        ? 'GitLab rejected the credentials glab holds for this host. Run ' +
+          'glab auth login for it, then retry.'
+        : 'GitLab rejected the credentials Delta holds for this host. Renew ' +
+          'them in Delta settings, then retry.',
       mark: '401',
     }
   }
@@ -65,9 +79,11 @@ function errorCopy(error: Error): {
   if (status === 403) {
     return {
       heading: 'Access denied',
-      guidance:
-        'This GitLab account cannot see this merge request. Check your ' +
-        'project access, then retry.',
+      guidance: isProxy
+        ? 'This GitLab account cannot see this merge request. Check your ' +
+          'project access, and which account glab is signed in as, then retry.'
+        : 'This GitLab account cannot see this merge request. Check your ' +
+          'project access, then retry.',
       mark: '403',
     }
   }
@@ -100,7 +116,8 @@ function errorCopy(error: Error): {
 }
 
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
-  const copy = errorCopy(error)
+  const transport = useTransport()
+  const copy = errorCopy(error, transport.targetKey === 'proxy')
   return (
     <main className="state-screen error-state" role="alert">
       <div className="state-mark error-code" aria-hidden="true">
