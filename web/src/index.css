@@ -384,7 +384,7 @@ a:focus-visible {
 .dir-row {
   position: relative;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
   width: 100%;
   min-height: 30px;
   align-items: center;
@@ -404,8 +404,11 @@ a:focus-visible {
 }
 
 .dir-chevron {
+  display: inline-flex;
+  justify-content: center;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .dir-name {
