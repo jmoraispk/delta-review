@@ -12,9 +12,11 @@ test.each([
   [401, 'gitlab_authentication_failed', 'GitLab authentication failed'],
   [403, undefined, 'Access denied'],
   [404, undefined, 'Merge request not found'],
+  [403, 'permission_missing', 'Delta lost access to this GitLab host'],
   [422, 'diff_truncated', 'Diff is incomplete'],
   [429, undefined, 'GitLab rate limit reached'],
   [503, undefined, 'GitLab is unavailable'],
+  [503, 'extension_unavailable', 'Delta background service unavailable'],
 ])('explains HTTP %s failures', (status, code, heading) => {
   render(
     <ErrorState
@@ -24,6 +26,27 @@ test.each([
   )
 
   expect(screen.getByRole('heading', { name: heading })).toBeVisible()
+})
+
+test('surfaces the unknown outcome of a write the transport refused to retry', () => {
+  render(
+    <ErrorState
+      error={
+        new ApiError(
+          503,
+          'Delta lost contact with its background service. Your comment may ' +
+            'or may not have been posted; reload to check before retrying.',
+          'extension_unavailable',
+        )
+      }
+      onRetry={() => undefined}
+    />,
+  )
+
+  // In the guidance paragraph, not buried in the collapsed technical detail.
+  expect(screen.getByRole('alert').querySelector('p')).toHaveTextContent(
+    /may or may not have been posted/i,
+  )
 })
 
 test('offers a working retry action', async () => {

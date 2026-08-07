@@ -15,8 +15,30 @@ function errorCopy(error: Error): {
   if (code === 'gitlab_authentication_failed') {
     return {
       heading: 'GitLab authentication failed',
-      guidance: 'Run glab auth login for this GitLab host, then retry.',
+      guidance:
+        'GitLab rejected the credentials Delta holds for this host. Renew ' +
+        'them, then retry.',
       mark: '401',
+    }
+  }
+  if (code === 'permission_missing') {
+    return {
+      heading: 'Delta lost access to this GitLab host',
+      guidance:
+        'The browser permission for this host was withdrawn. Grant it again ' +
+        'from Delta settings, then retry.',
+      mark: '403',
+    }
+  }
+  if (code === 'extension_unavailable') {
+    // The transport words this one per operation: a read that ran out of
+    // retries and a write it deliberately refused to retry need different
+    // advice, and the write's "may or may not have been posted" is the whole
+    // point. Show that message rather than a generic line that hides it.
+    return {
+      heading: 'Delta background service unavailable',
+      guidance: error.message,
+      mark: '503',
     }
   }
   if (code === 'diff_truncated') {
@@ -43,7 +65,9 @@ function errorCopy(error: Error): {
   if (status === 403) {
     return {
       heading: 'Access denied',
-      guidance: 'Check your GitLab permissions and glab authentication.',
+      guidance:
+        'This GitLab account cannot see this merge request. Check your ' +
+        'project access, then retry.',
       mark: '403',
     }
   }
@@ -70,7 +94,7 @@ function errorCopy(error: Error): {
   }
   return {
     heading: 'Review could not be loaded',
-    guidance: 'Check the local server and GitLab connection, then retry.',
+    guidance: 'Check that Delta and GitLab are both reachable, then retry.',
     mark: '!',
   }
 }
