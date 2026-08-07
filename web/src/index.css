@@ -1373,6 +1373,17 @@ button.primary-action {
 
 .diff-stream {
   width: 100%;
+  /*
+   * The virtualizer moves sections in and out and repositions the window in
+   * the same commit. Chrome's scroll anchoring reads that as content shifting
+   * above the viewport and compensates, which throws an upward scroll back
+   * down every time a new section enters from the top.
+   */
+  overflow-anchor: none;
+}
+
+.diff-stream * {
+  overflow-anchor: none;
 }
 
 .diff-stream-item .diff-stage {

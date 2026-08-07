@@ -98,6 +98,38 @@ test('scrolling carries on into the next file', async ({ page }) => {
     .toBe(true)
 })
 
+test('scrolling back up crosses file boundaries too', async ({ page }) => {
+  const main = page.locator('.review-main')
+  // Read a few files deep so there are sections above to scroll back into.
+  for (let step = 0; step < 20; step += 1) {
+    await main.evaluate((element) => {
+      element.scrollTop += 700
+    })
+    await page.waitForTimeout(50)
+  }
+  const deepest = await main.evaluate((element) => element.scrollTop)
+  expect(deepest).toBeGreaterThan(10_000)
+
+  // Every upward step must actually move up. Browser scroll anchoring used to
+  // throw the view back down whenever a section entered from the top, which
+  // trapped the reader at a file boundary.
+  const steps: { requested: number; actual: number }[] = []
+  for (let step = 0; step < 12; step += 1) {
+    const before = await main.evaluate((element) => element.scrollTop)
+    await main.evaluate((element) => {
+      element.scrollTop -= 700
+    })
+    await page.waitForTimeout(120)
+    const after = await main.evaluate((element) => element.scrollTop)
+    steps.push({ requested: before - 700, actual: after })
+  }
+
+  for (const { requested, actual } of steps) {
+    expect(Math.abs(actual - requested)).toBeLessThan(60)
+  }
+  expect(steps.at(-1)?.actual).toBeLessThan(deepest - 7_000)
+})
+
 test('the rail follows the scroll position', async ({ page }) => {
   await expect(page.locator('.file-row[aria-current="true"]')).toHaveCount(1)
 
