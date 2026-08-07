@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill'
 
+import { openHub } from './action'
 import type { DeltaMessage } from './messages'
 import { handleMessage } from './router'
 
@@ -8,3 +9,7 @@ import { handleMessage } from './router'
 browser.runtime.onMessage.addListener((message: unknown) =>
   handleMessage(message as DeltaMessage),
 )
+
+browser.action.onClicked.addListener((tab) => {
+  void openHub(tab.url)
+})
