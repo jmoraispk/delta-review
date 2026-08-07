@@ -1361,10 +1361,11 @@ button.primary-action {
   margin: 0 0 18px;
 }
 
+/*
+ * Deliberately not sticky: a pinned header sits over the first rows of a
+ * section and swallows the hover that reveals their comment buttons.
+ */
 .diff-stream-item .diff-header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   background: var(--canvas);
 }
 

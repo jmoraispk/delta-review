@@ -87,6 +87,14 @@ export function FileTree({
     overscan: 12,
     initialRect: { width: 280, height: 400 },
   })
+  // Reading down the diff moves the active file, so keep it in the rail.
+  // 'auto' leaves the rail alone while the row is already visible.
+  useEffect(() => {
+    if (activeRowIndex >= 0) {
+      virtualizer.scrollToIndex(activeRowIndex, { align: 'auto' })
+    }
+  }, [activeRowIndex, virtualizer])
+
   const virtualRows = virtualizer.getVirtualItems()
   const renderedRows =
     virtualRows.length > 0 || rows.length === 0

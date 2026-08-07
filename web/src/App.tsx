@@ -12,6 +12,7 @@ import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
 import { diffStats, diffStatsLabel } from './review/diffStats'
 import { projectUrlFrom } from './review/projectUrl'
+import type { ScrollRequest } from './review/DiffStream'
 import {
   discussionsQueryKey,
   mergeFetchedDiscussions,
@@ -33,6 +34,10 @@ type UpdateState = 'idle' | 'updating' | 'success' | 'error'
 export function App() {
   const queryClient = useQueryClient()
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
+  const [scrollRequest, setScrollRequest] = useState<ScrollRequest | null>(
+    null,
+  )
+  const scrollNonce = useRef(0)
   const [showGeneralDiscussions, setShowGeneralDiscussions] =
     useState(false)
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
@@ -252,6 +257,8 @@ export function App() {
             onSelect={(index) => {
               if (index !== activeFileIndex) setUpdateState('idle')
               setRequestedFileIndex(index)
+              scrollNonce.current += 1
+              setScrollRequest({ index, nonce: scrollNonce.current })
             }}
             onFocusDiff={() => diffFocusRef.current?.focus()}
           />
@@ -347,6 +354,7 @@ export function App() {
                 discussions={discussions.data ?? []}
                 files={diffs.data}
                 scrollRef={diffFocusRef}
+                scrollRequest={scrollRequest}
                 onActiveIndexChange={setRequestedFileIndex}
               />
             </Suspense>
