@@ -27,13 +27,42 @@ async function knownHubTab(): Promise<number | null> {
   }
 }
 
+/**
+ * Drops the remembered hub tab. Call on `runtime.onStartup` and
+ * `runtime.onInstalled`.
+ *
+ * Tab ids are unique only within a browser session, but `storage.local`
+ * outlives one. A `hubTabId` written before a restart can therefore name an
+ * unrelated tab in the next session, and reusing it would navigate that tab to
+ * the hub — discarding whatever the user had open there. Forgetting the id
+ * costs at most one redundant hub tab; keeping it risks destroying work.
+ */
+export async function forgetHubTab(): Promise<void> {
+  await browser.storage.local.remove(HUB_TAB_KEY)
+}
+
+/**
+ * Selecting a tab does not raise the window containing it, so a hub living in a
+ * background window would look like a dead click. `browser.windows` is absent
+ * on Firefox for Android, which has no windows to raise; there we simply leave
+ * the tab selected rather than throwing.
+ */
+async function focusWindow(windowId: number | undefined): Promise<void> {
+  if (typeof windowId !== 'number' || !browser.windows) return
+  await browser.windows.update(windowId, { focused: true })
+}
+
 export async function openHub(url: string | undefined): Promise<void> {
   const hosts = await listHosts()
   const target = browser.runtime.getURL(`hub.html${hashForTab(url, hosts)}`)
 
   const existing = await knownHubTab()
   if (existing !== null) {
-    await browser.tabs.update(existing, { url: target, active: true })
+    const tab = await browser.tabs.update(existing, {
+      url: target,
+      active: true,
+    })
+    await focusWindow(tab.windowId)
     return
   }
   const created = await browser.tabs.create({ url: target })
