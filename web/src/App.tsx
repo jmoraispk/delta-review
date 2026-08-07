@@ -32,29 +32,30 @@ export function App() {
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
   const diffFocusRef = useRef<HTMLElement>(null)
   const config = useQuery({
-    queryKey: ['config'],
+    queryKey: ['config', transport.targetKey],
     queryFn: () => transport.getConfig(),
     staleTime: 30_000,
   })
   const mergeRequest = useQuery({
-    queryKey: ['merge-request'],
+    queryKey: ['merge-request', transport.targetKey],
     queryFn: ({ signal }) => transport.getMergeRequest(signal),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
   const diffs = useQuery({
-    queryKey: ['diffs'],
+    queryKey: ['diffs', transport.targetKey],
     queryFn: ({ signal }) => transport.getDiffs(signal),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
   const discussions = useQuery({
-    queryKey: discussionsQueryKey,
+    queryKey: discussionsQueryKey(transport.targetKey),
     queryFn: async ({ signal }) =>
       mergeFetchedDiscussions(
         queryClient,
+        transport.targetKey,
         await transport.getDiscussions(signal),
       ),
     retry: false,

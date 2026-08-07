@@ -34,6 +34,7 @@ export function DiscussionThread({
 }: DiscussionThreadProps) {
   const queryClient = useQueryClient()
   const transport = useTransport()
+  const queryKey = discussionsQueryKey(transport.targetKey)
   const [current, setCurrent] = useState(discussion)
   const [draft, setDraft] = useState('')
 
@@ -43,9 +44,8 @@ export function DiscussionThread({
     mutationFn: (body: string) =>
       transport.replyToDiscussion(current.id, body),
     onMutate: async (body) => {
-      await queryClient.cancelQueries({ queryKey: discussionsQueryKey })
-      const snapshot =
-        queryClient.getQueryData<Discussion[]>(discussionsQueryKey)
+      await queryClient.cancelQueries({ queryKey })
+      const snapshot = queryClient.getQueryData<Discussion[]>(queryKey)
       const previous = current
       const optimisticNote: DiscussionNote = {
         id: `optimistic-${Date.now()}`,
@@ -57,7 +57,7 @@ export function DiscussionThread({
         notes: [...value.notes, optimisticNote],
       })
       setCurrent(update)
-      queryClient.setQueryData<Discussion[]>(discussionsQueryKey, (values) =>
+      queryClient.setQueryData<Discussion[]>(queryKey, (values) =>
         updateCachedDiscussion(values, current.id, update),
       )
       return { snapshot, previous, optimisticId: optimisticNote.id }
@@ -65,7 +65,7 @@ export function DiscussionThread({
     onError: (_error, _body, context) => {
       if (context) {
         setCurrent(context.previous)
-        queryClient.setQueryData(discussionsQueryKey, context.snapshot)
+        queryClient.setQueryData(queryKey, context.snapshot)
       }
     },
     onSuccess: (note, _body, context) => {
@@ -76,13 +76,12 @@ export function DiscussionThread({
         ),
       })
       setCurrent(replaceOptimistic)
-      queryClient.setQueryData<Discussion[]>(discussionsQueryKey, (values) =>
+      queryClient.setQueryData<Discussion[]>(queryKey, (values) =>
         updateCachedDiscussion(values, current.id, replaceOptimistic),
       )
       setDraft('')
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: discussionsQueryKey }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const resolvableNote = current.notes.find((note) => note.resolvable)
@@ -91,9 +90,8 @@ export function DiscussionThread({
     mutationFn: (resolved: boolean) =>
       transport.setResolved(current.id, resolved),
     onMutate: async (resolved) => {
-      await queryClient.cancelQueries({ queryKey: discussionsQueryKey })
-      const snapshot =
-        queryClient.getQueryData<Discussion[]>(discussionsQueryKey)
+      await queryClient.cancelQueries({ queryKey })
+      const snapshot = queryClient.getQueryData<Discussion[]>(queryKey)
       const previous = current
       const update = (value: Discussion): Discussion => ({
         ...value,
@@ -102,7 +100,7 @@ export function DiscussionThread({
         ),
       })
       setCurrent(update)
-      queryClient.setQueryData<Discussion[]>(discussionsQueryKey, (values) =>
+      queryClient.setQueryData<Discussion[]>(queryKey, (values) =>
         updateCachedDiscussion(values, current.id, update),
       )
       return { snapshot, previous }
@@ -110,11 +108,10 @@ export function DiscussionThread({
     onError: (_error, _resolved, context) => {
       if (context) {
         setCurrent(context.previous)
-        queryClient.setQueryData(discussionsQueryKey, context.snapshot)
+        queryClient.setQueryData(queryKey, context.snapshot)
       }
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: discussionsQueryKey }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   function submitReply(event: FormEvent) {

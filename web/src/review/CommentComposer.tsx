@@ -31,7 +31,7 @@ export function CommentComposer({
       transport.createDiscussion({ ...selection, body }),
     onSuccess: (result) => {
       setDraft('')
-      recordPostedDiscussion(queryClient, result.discussion)
+      recordPostedDiscussion(queryClient, transport.targetKey, result.discussion)
       onPosted?.(result)
     },
   })

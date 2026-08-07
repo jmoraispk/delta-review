@@ -12,6 +12,10 @@ import App from '../App'
 import type { Discussion, PostingResult } from '../api/types'
 import { CommentComposer } from '../review/CommentComposer'
 import { DiscussionThread } from '../review/DiscussionThread'
+import {
+  discussionsQueryKey,
+  pendingDiscussionsQueryKey,
+} from '../review/discussionCache'
 import type { BackendSelection } from '../review/selection'
 import { TransportProvider } from '../transport/context'
 import { createHttpTransport } from '../transport/http'
@@ -54,7 +58,7 @@ beforeEach(() => {
 
 function DiscussionCacheObserver() {
   useQuery({
-    queryKey: ['discussions'],
+    queryKey: discussionsQueryKey('proxy'),
     queryFn: async () => {
       const response = await fetch('/api/discussions')
       return response.json() as Promise<Discussion[]>
@@ -172,7 +176,9 @@ test('keeps the POSTed discussion in the cache without refetching', async () => 
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  queryClient.setQueryData<Discussion[]>(['discussions'], [existing])
+  queryClient.setQueryData<Discussion[]>(discussionsQueryKey('proxy'), [
+    existing,
+  ])
   render(
     <QueryClientProvider client={queryClient}>
       <TransportProvider transport={transport}>
@@ -188,10 +194,9 @@ test('keeps the POSTed discussion in the cache without refetching', async () => 
   )
   await user.click(screen.getByRole('button', { name: 'Comment' }))
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      existing,
-      posted,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([existing, posted]),
   )
 
   expect(discussionGetCount).toBe(0)
@@ -219,7 +224,9 @@ test('replaces an equal-ID discussion with the authoritative POST result', async
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  queryClient.setQueryData<Discussion[]>(['discussions'], [stale])
+  queryClient.setQueryData<Discussion[]>(discussionsQueryKey('proxy'), [
+    stale,
+  ])
   render(
     <QueryClientProvider client={queryClient}>
       <TransportProvider transport={transport}>
@@ -232,9 +239,9 @@ test('replaces an equal-ID discussion with the authoritative POST result', async
   await user.click(screen.getByRole('button', { name: 'Comment' }))
 
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      posted,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([posted]),
   )
 })
 
@@ -282,17 +289,16 @@ test('merges a delayed startup fetch with a successfully POSTed discussion', asy
   await user.type(screen.getByLabelText('Comment'), 'Keep this comment.')
   await user.click(screen.getByRole('button', { name: 'Comment' }))
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      posted,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([posted]),
   )
 
   resolveGet([existing])
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      existing,
-      posted,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([existing, posted]),
   )
 })
 
@@ -339,9 +345,9 @@ test('allows a delayed startup fetch to finish when the POST fails', async () =>
 
   resolveGet([existing])
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      existing,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([existing]),
   )
   expect(editor).toHaveValue('Keep this draft.')
 })
@@ -397,21 +403,22 @@ test('uses fetched server data and clears a confirmed POST overlay', async () =>
   await user.click(screen.getByRole('button', { name: 'Comment' }))
   await waitFor(() =>
     expect(
-      queryClient.getQueryData<Discussion[]>([
-        'discussions',
-        'pending',
-      ]),
+      queryClient.getQueryData<Discussion[]>(
+        pendingDiscussionsQueryKey('proxy'),
+      ),
     ).toEqual([posted]),
   )
 
   resolveGet([confirmed])
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      confirmed,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([confirmed]),
   )
   expect(
-    queryClient.getQueryData<Discussion[]>(['discussions', 'pending']) ?? [],
+    queryClient.getQueryData<Discussion[]>(
+      pendingDiscussionsQueryKey('proxy'),
+    ) ?? [],
   ).toEqual([])
 })
 
@@ -461,9 +468,9 @@ test('merges a manual update that overlaps a successful POST', async () => {
 
   await screen.findByRole('button', { name: 'Update' })
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      existing,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([existing]),
   )
   await user.click(screen.getByRole('button', { name: 'Update' }))
   await updateStarted
@@ -471,19 +478,16 @@ test('merges a manual update that overlaps a successful POST', async () => {
   await user.type(screen.getByLabelText('Comment'), 'Post during update.')
   await user.click(screen.getByRole('button', { name: 'Comment' }))
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      existing,
-      posted,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([existing, posted]),
   )
 
   resolveUpdate([existing, refreshed])
   await waitFor(() =>
-    expect(queryClient.getQueryData<Discussion[]>(['discussions'])).toEqual([
-      existing,
-      refreshed,
-      posted,
-    ]),
+    expect(
+      queryClient.getQueryData<Discussion[]>(discussionsQueryKey('proxy')),
+    ).toEqual([existing, refreshed, posted]),
   )
 })
 
