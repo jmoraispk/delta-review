@@ -1353,6 +1353,32 @@ button.primary-action {
   left: 0;
 }
 
+.diff-stream {
+  width: 100%;
+}
+
+.diff-stream-item .diff-stage {
+  margin: 0 0 18px;
+}
+
+.diff-stream-item .diff-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--canvas);
+}
+
+.diff-file-name {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .diff-library {
   min-height: 240px;
   overflow: auto;
