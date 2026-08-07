@@ -39,7 +39,9 @@ writeFileSync(
           updates: [
             {
               version,
-              update_link: `${base}/delta_review-${version}.xpi`,
+              // Stable, version-free name. The workflow renames web-ext's
+              // delta_review-<version>.xpi to this before uploading.
+              update_link: `${base}/delta-review.xpi`,
             },
           ],
         },

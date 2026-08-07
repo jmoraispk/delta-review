@@ -38,6 +38,7 @@ jobs:
           CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
 
       - name: Sign the Firefox XPI
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           npx --yes web-ext sign \
             --source-dir web/dist-extension/firefox \
@@ -49,14 +50,23 @@ jobs:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
 
+      # web-ext names its output delta_review-<version>.xpi. The install page
+      # links one stable URL that people paste into chat, so give the artifact
+      # a version-free name and keep releases/latest/download/delta-review.xpi
+      # resolving across every future release.
+      - name: Name the XPI for a stable download link
+        if: startsWith(github.ref, 'refs/tags/')
+        run: mv dist-xpi/*.xpi delta-review.xpi
+
       - name: Build update manifests
         run: node web/scripts/make-update-manifests.mjs
 
       - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             delta-review-chrome.zip
             delta-review.crx
-            dist-xpi/*.xpi
+            delta-review.xpi
             web/dist-extension/updates/updates.xml
             web/dist-extension/updates/updates.json

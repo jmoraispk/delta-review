@@ -4,7 +4,7 @@
     "gecko": {
       "id": "delta-review@jmoraispk.github.io",
       "strict_min_version": "128.0",
-      "update_url": "https://jmoraispk.github.io/delta-review/updates.json"
+      "update_url": "https://github.com/jmoraispk/delta-review/releases/latest/download/updates.json"
     }
   }
 }

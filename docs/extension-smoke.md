@@ -68,3 +68,20 @@ rather than just passing or failing it.
     install on a managed work laptop. If device management ignores or
     overrides it, the unpacked-folder route becomes the primary instruction for
     that audience and the install page should lead with it there.
+22. **Auto-update actually arrives.** Install from the install page, not from
+    an unpacked folder. Then bump `version` in
+    `web/src/extension/manifest.base.json`, tag, and let the release publish.
+    Expected: within the browser's own update interval — or immediately, via
+    "Update" on `chrome://extensions` and "Check for Updates" in Firefox's
+    add-ons manager — the installed extension moves to the new version with no
+    reinstall and no second visit to the install page.
+
+    This is the one check that exercises the whole self-hosting arrangement,
+    and it rests on an assumption: both update URLs point at
+    `https://github.com/jmoraispk/delta-review/releases/latest/download/...`,
+    which is an HTTP redirect to the current release's asset. Chrome's update
+    client and Firefox's must follow that redirect. It is the standard way to
+    self-host, but nothing here proves it. If the browser never updates, check
+    whether it fetched `updates.xml` / `updates.json` at all; if the redirect is
+    the problem, pin the update URLs to a fixed host you control instead of
+    `latest/download`.
