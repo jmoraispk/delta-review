@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Install Delta Review</title>
+    <style>
+      body { font: 16px/1.6 system-ui, sans-serif; max-width: 42rem;
+             margin: 4rem auto; padding: 0 1.5rem; }
+      pre { background: #f4f4f5; padding: 1rem; overflow-x: auto;
+            border-radius: 6px; }
+      .path { display: none; }
+      .path.active { display: block; }
+      .secondary { margin-top: 3rem; padding-top: 1.5rem;
+                   border-top: 1px solid #e4e4e7; }
+    </style>
+  </head>
+  <body>
+    <h1>Delta Review</h1>
+    <p>Review GitLab merge requests in your browser. No extension store.</p>
+
+    <div id="firefox" class="path">
+      <h2>Firefox</h2>
+      <p>One click. Updates arrive automatically.</p>
+      <p>
+        <a id="xpi" href="https://github.com/jmoraispk/delta-review/releases/latest/download/delta_review.xpi">
+          Install Delta Review
+        </a>
+      </p>
+    </div>
+
+    <div id="chromium" class="path">
+      <h2>Chrome and Edge</h2>
+      <p>
+        Chrome does not allow installing from a link without a one-time setup
+        step. Run this once in PowerShell — no admin rights needed — then
+        restart the browser. Delta installs itself and stays up to date.
+      </p>
+      <pre id="policy"></pre>
+      <div class="secondary">
+        <h3>If your machine blocks that</h3>
+        <p>Managed devices sometimes ignore per-user policy. In that case:</p>
+        <ol>
+          <li>
+            <a href="https://github.com/jmoraispk/delta-review/releases/latest/download/delta-review-chrome.zip">
+              Download the zip
+            </a>
+            and unzip it somewhere permanent — do not move or delete it later.
+          </li>
+          <li>Open <code>chrome://extensions</code> (or <code>edge://extensions</code>).</li>
+          <li>Turn on Developer mode.</li>
+          <li>Click "Load unpacked" and choose the unzipped folder.</li>
+        </ol>
+        <p>Installed this way, Delta does not update itself — repeat to upgrade.</p>
+      </div>
+    </div>
+
+    <div class="secondary">
+      <h2>After installing</h2>
+      <p>
+        Click the Delta icon, open Settings, and add your GitLab host with a
+        personal access token that has the <code>api</code> scope. Give the
+        token an expiry date. Delta only ever asks for permission to reach the
+        hosts you add.
+      </p>
+    </div>
+
+    <script>
+      const EXTENSION_ID = 'REPLACE_WITH_ID_FROM_CRX_KEY'
+      const UPDATE_URL =
+        'https://jmoraispk.github.io/delta-review/updates.xml'
+      const isFirefox = navigator.userAgent.includes('Firefox')
+      document
+        .getElementById(isFirefox ? 'firefox' : 'chromium')
+        .classList.add('active')
+
+      const vendor = navigator.userAgent.includes('Edg/')
+        ? 'Microsoft\\Edge'
+        : 'Google\\Chrome'
+      document.getElementById('policy').textContent =
+        `$key = 'HKCU:\\SOFTWARE\\Policies\\${vendor}\\ExtensionSettings\\${EXTENSION_ID}'\n` +
+        `New-Item -Path $key -Force | Out-Null\n` +
+        `Set-ItemProperty -Path $key -Name 'installation_mode' -Value 'normal_installed'\n` +
+        `Set-ItemProperty -Path $key -Name 'update_url' -Value '${UPDATE_URL}'`
+    </script>
+  </body>
+</html>
