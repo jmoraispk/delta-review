@@ -1,0 +1,62 @@
+name: extension
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      DELTA_DOWNLOAD_BASE: https://github.com/jmoraispk/delta-review/releases/latest/download
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --prefix web
+      - run: npm test --prefix web -- --run
+      - run: npm run build:extension --prefix web
+
+      - name: Zip the Chrome build
+        run: cd web/dist-extension/chrome && zip -r ../../../delta-review-chrome.zip .
+
+      - name: Pack the CRX
+        run: |
+          echo "$CRX_PRIVATE_KEY" > /tmp/key.pem
+          npx --yes crx3 --keyPath /tmp/key.pem \
+            --crxPath delta-review.crx web/dist-extension/chrome
+          rm /tmp/key.pem
+        env:
+          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
+
+      - name: Sign the Firefox XPI
+        run: |
+          npx --yes web-ext sign \
+            --source-dir web/dist-extension/firefox \
+            --artifacts-dir dist-xpi \
+            --channel unlisted \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET"
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+
+      - name: Build update manifests
+        run: node web/scripts/make-update-manifests.mjs
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            delta-review-chrome.zip
+            delta-review.crx
+            dist-xpi/*.xpi
+            web/dist-extension/updates/updates.xml
+            web/dist-extension/updates/updates.json
