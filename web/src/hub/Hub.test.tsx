@@ -15,10 +15,12 @@ let replyToListMergeRequests = async (): Promise<unknown> => ({
   ok: true,
   data: summaries,
 })
+/** Same, for the query the whole page is gated on. */
+let replyToListHosts = async (): Promise<unknown> => ({ ok: true, data: hosts })
 fake.runtime = {
   sendMessage: async (message) => {
     const { op } = message as { op: string }
-    if (op === 'listHosts') return { ok: true, data: hosts }
+    if (op === 'listHosts') return replyToListHosts()
     if (op === 'listMergeRequests') return replyToListMergeRequests()
     return { ok: true, data: null }
   },
@@ -43,6 +45,7 @@ beforeEach(() => {
   hosts = []
   summaries = []
   replyToListMergeRequests = async () => ({ ok: true, data: summaries })
+  replyToListHosts = async () => ({ ok: true, data: hosts })
   fake.reset()
 })
 
@@ -53,6 +56,33 @@ const ONE_HOST = [
 test('with no hosts it shows the setup card, not empty lists', async () => {
   renderHub()
   expect(await screen.findByText(/Add a GitLab host/i)).toBeInTheDocument()
+})
+
+test('a failed host load says so instead of claiming there are no hosts', async () => {
+  const user = userEvent.setup()
+  hosts = ONE_HOST
+  replyToListHosts = async () => ({
+    ok: false,
+    error: {
+      code: 'delta_internal_error',
+      message: 'Storage read failed',
+      status: 500,
+    },
+  })
+  renderHub()
+
+  expect(
+    await screen.findByText(/Could not load your GitLab hosts/i),
+  ).toBeInTheDocument()
+  expect(screen.getByText('Storage read failed')).toBeInTheDocument()
+  // The setup card would tell a configured user to start from scratch.
+  expect(screen.queryByText(/Add a GitLab host to get started/i)).toBeNull()
+
+  replyToListHosts = async () => ({ ok: true, data: hosts })
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+  expect(await screen.findByText('Open by URL')).toBeInTheDocument()
+  expect(screen.queryByText(/Could not load your GitLab hosts/i)).toBeNull()
 })
 
 test('lists merge requests awaiting review', async () => {

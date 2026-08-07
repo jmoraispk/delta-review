@@ -155,6 +155,24 @@ export function Lists() {
   }
 
   if (hosts.isLoading) return <p>Loading…</p>
+  // A rejected `listHosts` leaves `hosts.data` undefined, which the check
+  // below cannot tell apart from a genuinely empty list. Without this branch
+  // first, a user with hosts configured lands on the setup card and is told to
+  // add their first GitLab host — the one screen that is certainly wrong, on
+  // the page they see first.
+  if (hosts.isError) {
+    return (
+      <p className="hub-error" role="alert">
+        Could not load your GitLab hosts. Delta’s background service did not
+        answer, so this is not a sign that your hosts are gone; retry, and
+        reload this page if it keeps failing.{' '}
+        <button type="button" onClick={() => void hosts.refetch()}>
+          Retry
+        </button>
+        <span className="hub-detail">{hosts.error.message}</span>
+      </p>
+    )
+  }
   if (!hosts.data?.length) {
     return (
       <div className="hub-setup">
