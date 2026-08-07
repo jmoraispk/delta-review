@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test, vi } from 'vitest'
 
@@ -224,6 +224,224 @@ test('the page says it is loading rather than flashing empty', async () => {
   expect(
     await screen.findByText(/Loading merge requests/i),
   ).toBeInTheDocument()
+})
+
+function mergeRequest(
+  id: number,
+  reference: string,
+  title: string,
+  updated: string,
+) {
+  return {
+    id,
+    iid: Number(reference.split('!')[1]),
+    title,
+    web_url: `https://gitlab.example.com/${reference.replace(
+      '!',
+      '/-/merge_requests/',
+    )}`,
+    project_id: 1,
+    references: { full: reference },
+    updated_at: updated,
+    author: { id: 3, username: 'ana', name: 'Ana' },
+  }
+}
+
+/** One host whose review queue spans several repositories, as a real one does. */
+function acrossRepositories() {
+  return [
+    {
+      hostId: 'h',
+      host: 'gitlab.example.com',
+      reviewing: {
+        items: [
+          mergeRequest(
+            1,
+            'gputelecom/aerial_sdk!5606',
+            'Widen the SDK ABI',
+            '2026-08-01T10:00:00Z',
+          ),
+          mergeRequest(
+            2,
+            'gputelecom/aerial-sls!12',
+            'Retry the SLS handshake',
+            '2026-08-03T10:00:00Z',
+          ),
+          mergeRequest(
+            3,
+            'gputelecom/aerial_sdk!5610',
+            'Drop the dead SDK flag',
+            '2026-08-02T10:00:00Z',
+          ),
+        ],
+        truncated: false,
+      },
+      authored: { items: [], truncated: false },
+    },
+  ]
+}
+
+/** The rendered group whose heading names `repository`. */
+function groupFor(repository: string): HTMLElement {
+  const heading = screen.getByText(repository).closest('.hub-group')
+  if (!heading) throw new Error(`No group rendered for ${repository}`)
+  return heading as HTMLElement
+}
+
+test('merge requests sit under the repository they belong to', async () => {
+  hosts = ONE_HOST
+  summaries = acrossRepositories()
+  renderHub()
+  await screen.findByText('Widen the SDK ABI')
+
+  const sdk = groupFor('gputelecom/aerial_sdk')
+  expect(within(sdk).getByText('Widen the SDK ABI')).toBeInTheDocument()
+  expect(within(sdk).getByText('Drop the dead SDK flag')).toBeInTheDocument()
+  expect(within(sdk).queryByText('Retry the SLS handshake')).toBeNull()
+
+  const sls = groupFor('gputelecom/aerial-sls')
+  expect(within(sls).getByText('Retry the SLS handshake')).toBeInTheDocument()
+  expect(within(sls).queryByText('Widen the SDK ABI')).toBeNull()
+})
+
+test('a group heading counts the merge requests it holds', async () => {
+  hosts = ONE_HOST
+  summaries = acrossRepositories()
+  renderHub()
+  await screen.findByText('Widen the SDK ABI')
+
+  const sdk = groupFor('gputelecom/aerial_sdk')
+  expect(within(sdk).getByText('2')).toBeInTheDocument()
+  expect(
+    within(sdk).getByRole('button', { name: /2 merge requests/ }),
+  ).toBeInTheDocument()
+
+  const sls = groupFor('gputelecom/aerial-sls')
+  expect(within(sls).getByText('1')).toBeInTheDocument()
+  expect(
+    within(sls).getByRole('button', { name: /1 merge request$/ }),
+  ).toBeInTheDocument()
+})
+
+test('the liveliest repository leads, and so does its newest merge request', async () => {
+  hosts = ONE_HOST
+  summaries = acrossRepositories()
+  const view = renderHub()
+  await screen.findByText('Widen the SDK ABI')
+
+  // aerial-sls moved on the 3rd, aerial_sdk on the 2nd.
+  expect(
+    [...view.container.querySelectorAll('.hub-group-name')].map(
+      (name) => name.textContent,
+    ),
+  ).toEqual(['gputelecom/aerial-sls', 'gputelecom/aerial_sdk'])
+  expect(
+    within(groupFor('gputelecom/aerial_sdk'))
+      .getAllByRole('listitem')
+      .map((row) => row.querySelector('strong')?.textContent),
+  ).toEqual(['Drop the dead SDK flag', 'Widen the SDK ABI'])
+})
+
+test('collapsing a group hides its rows, and expanding restores them', async () => {
+  const user = userEvent.setup()
+  hosts = ONE_HOST
+  summaries = acrossRepositories()
+  renderHub()
+  await screen.findByText('Widen the SDK ABI')
+
+  const toggle = within(groupFor('gputelecom/aerial_sdk')).getByRole('button')
+  await user.click(toggle)
+
+  expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.queryByText('Widen the SDK ABI')).toBeNull()
+  expect(screen.queryByText('Drop the dead SDK flag')).toBeNull()
+  // Shut, the group still says what it is and how much is waiting in it.
+  expect(
+    within(groupFor('gputelecom/aerial_sdk')).getByText('2'),
+  ).toBeInTheDocument()
+  // And the repositories either side of it are untouched.
+  expect(screen.getByText('Retry the SLS handshake')).toBeInTheDocument()
+
+  await user.click(toggle)
+
+  expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByText('Widen the SDK ABI')).toBeInTheDocument()
+})
+
+test('a group collapsed on an earlier visit comes back collapsed', async () => {
+  hosts = ONE_HOST
+  summaries = acrossRepositories()
+  fake.data.hubCollapsedGroups = { h: ['gputelecom/aerial_sdk'] }
+  renderHub()
+
+  expect(
+    await screen.findByRole('button', {
+      name: /aerial_sdk/,
+      expanded: false,
+    }),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('Widen the SDK ABI')).toBeNull()
+  expect(screen.getByText('Retry the SLS handshake')).toBeInTheDocument()
+})
+
+test('collapsing is stored under its own key, never the worker’s', async () => {
+  const user = userEvent.setup()
+  hosts = ONE_HOST
+  summaries = acrossRepositories()
+  fake.data.hosts = ONE_HOST
+  fake.data.tokens = { h: 'glpat-secret' }
+  renderHub()
+  await screen.findByText('Widen the SDK ABI')
+
+  await user.click(within(groupFor('gputelecom/aerial_sdk')).getByRole('button'))
+
+  await waitFor(() =>
+    expect(fake.data.hubCollapsedGroups).toEqual({
+      h: ['gputelecom/aerial_sdk'],
+    }),
+  )
+  // Tokens belong to the service worker. The page may not rewrite them, and a
+  // merged `storage.local.set` must leave them exactly as they were.
+  expect(fake.data.tokens).toEqual({ h: 'glpat-secret' })
+  expect(fake.data.hosts).toEqual(ONE_HOST)
+})
+
+test('the same repository under two hosts collapses independently', async () => {
+  const user = userEvent.setup()
+  hosts = [
+    { id: 'a', host: 'gitlab.example.com', userId: 7, username: 'j' },
+    { id: 'b', host: 'gitlab.internal', userId: 7, username: 'j' },
+  ]
+  summaries = [
+    ['a', 'gitlab.example.com', 1, 'Patch the public copy'],
+    ['b', 'gitlab.internal', 2, 'Patch the internal copy'],
+  ].map(([hostId, host, id, title]) => ({
+    hostId,
+    host,
+    reviewing: {
+      items: [
+        mergeRequest(
+          id as number,
+          'group/api!1',
+          title as string,
+          '2026-08-01T10:00:00Z',
+        ),
+      ],
+      truncated: false,
+    },
+    authored: { items: [], truncated: false },
+  }))
+  renderHub()
+  await screen.findByText('Patch the public copy')
+
+  const [onHostA] = screen.getAllByRole('button', { name: /group\/api/ })
+  await user.click(onHostA)
+
+  expect(screen.queryByText('Patch the public copy')).toBeNull()
+  expect(screen.getByText('Patch the internal copy')).toBeInTheDocument()
+  await waitFor(() =>
+    expect(fake.data.hubCollapsedGroups).toEqual({ a: ['group/api'] }),
+  )
 })
 
 test('settings offers to re-grant a host whose permission was withdrawn', async () => {

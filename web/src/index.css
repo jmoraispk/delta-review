@@ -1504,6 +1504,68 @@ button.primary-action {
   padding: 0;
 }
 
+/*
+ * A repository group inside a section. The toggle rules are written as
+ * `.hub .hub-group-toggle` rather than `.hub-group-toggle` on purpose: the
+ * generic `.hub button` further down gives every button in the hub a border, a
+ * panel background and 10px mono, and a single class would lose to it on
+ * specificity no matter where it sat in this file.
+ */
+.hub-group + .hub-group {
+  margin-top: 12px;
+}
+
+.hub .hub-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  text-align: left;
+}
+
+.hub .hub-group-toggle:hover .hub-group-name {
+  color: var(--delta);
+}
+
+.hub .hub-group-toggle:focus-visible {
+  outline: 1px solid var(--delta);
+  outline-offset: 2px;
+}
+
+.hub-group-caret {
+  flex: none;
+  width: 9px;
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.hub-group-name {
+  flex: 1;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-group-count {
+  flex: none;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: center;
+}
+
 .hub-row {
   display: flex;
   align-items: center;
