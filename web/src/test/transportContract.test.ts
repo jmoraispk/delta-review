@@ -75,6 +75,29 @@ test('a second port failure is surfaced, not retried forever', async () => {
   ).rejects.toMatchObject({ code: 'extension_unavailable', status: 503 })
 })
 
+// A port-closed rejection means the response was lost, not that the worker
+// never reached GitLab. Retrying a post risks a duplicate comment on the merge
+// request, which is public and has to be deleted by hand.
+test('createDiscussion is not retried, because a repeat could double-post', async () => {
+  let attempts = 0
+  reply = async () => {
+    attempts += 1
+    throw new Error('The message port closed before a response was received.')
+  }
+  await expect(
+    createRuntimeTransport(TARGET).createDiscussion({
+      old_path: 'a.py',
+      new_path: 'a.py',
+      start_old: null,
+      start_new: 1,
+      end_old: null,
+      end_new: 2,
+      body: 'hi',
+    }),
+  ).rejects.toMatchObject({ code: 'extension_unavailable', status: 503 })
+  expect(attempts).toBe(1)
+})
+
 test('createDiscussion flattens the selection and body', async () => {
   sent.length = 0
   reply = async () => ({ ok: true, data: {} })
