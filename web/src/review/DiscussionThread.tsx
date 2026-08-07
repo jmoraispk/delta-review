@@ -5,8 +5,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useEffect, useState, type FormEvent } from 'react'
 
-import { api } from '../api/client'
 import type { Discussion, DiscussionNote } from '../api/types'
+import { useTransport } from '../transport/context'
 import { discussionsQueryKey } from './discussionCache'
 import { ReviewerMark } from './ReviewerMark'
 
@@ -33,6 +33,7 @@ export function DiscussionThread({
   rangeLabel,
 }: DiscussionThreadProps) {
   const queryClient = useQueryClient()
+  const transport = useTransport()
   const [current, setCurrent] = useState(discussion)
   const [draft, setDraft] = useState('')
 
@@ -40,13 +41,7 @@ export function DiscussionThread({
 
   const reply = useMutation({
     mutationFn: (body: string) =>
-      api<DiscussionNote>(
-        `/api/discussions/${encodeURIComponent(current.id)}/notes`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ body }),
-        },
-      ),
+      transport.replyToDiscussion(current.id, body),
     onMutate: async (body) => {
       await queryClient.cancelQueries({ queryKey: discussionsQueryKey })
       const snapshot =
@@ -94,13 +89,7 @@ export function DiscussionThread({
   const isResolved = Boolean(resolvableNote?.resolved)
   const resolution = useMutation({
     mutationFn: (resolved: boolean) =>
-      api<Discussion>(
-        `/api/discussions/${encodeURIComponent(current.id)}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ resolved }),
-        },
-      ),
+      transport.setResolved(current.id, resolved),
     onMutate: async (resolved) => {
       await queryClient.cancelQueries({ queryKey: discussionsQueryKey })
       const snapshot =

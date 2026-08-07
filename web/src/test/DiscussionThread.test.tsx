@@ -13,8 +13,12 @@ import type { Discussion, PostingResult } from '../api/types'
 import { CommentComposer } from '../review/CommentComposer'
 import { DiscussionThread } from '../review/DiscussionThread'
 import type { BackendSelection } from '../review/selection'
+import { TransportProvider } from '../transport/context'
+import { createHttpTransport } from '../transport/http'
 import { TestProviders } from './fixtures'
 import { server } from './server'
+
+const transport = createHttpTransport()
 
 const discussion: Discussion = {
   id: 'discussion-1',
@@ -171,8 +175,10 @@ test('keeps the POSTed discussion in the cache without refetching', async () => 
   queryClient.setQueryData<Discussion[]>(['discussions'], [existing])
   render(
     <QueryClientProvider client={queryClient}>
-      <DiscussionCacheObserver />
-      <CommentComposer selection={selection} />
+      <TransportProvider transport={transport}>
+        <DiscussionCacheObserver />
+        <CommentComposer selection={selection} />
+      </TransportProvider>
     </QueryClientProvider>,
   )
 
@@ -216,7 +222,9 @@ test('replaces an equal-ID discussion with the authoritative POST result', async
   queryClient.setQueryData<Discussion[]>(['discussions'], [stale])
   render(
     <QueryClientProvider client={queryClient}>
-      <CommentComposer selection={selection} />
+      <TransportProvider transport={transport}>
+        <CommentComposer selection={selection} />
+      </TransportProvider>
     </QueryClientProvider>,
   )
 
@@ -263,8 +271,10 @@ test('merges a delayed startup fetch with a successfully POSTed discussion', asy
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <App />
-      <CommentComposer selection={selection} />
+      <TransportProvider transport={transport}>
+        <App />
+        <CommentComposer selection={selection} />
+      </TransportProvider>
     </QueryClientProvider>,
   )
 
@@ -314,8 +324,10 @@ test('allows a delayed startup fetch to finish when the POST fails', async () =>
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <App />
-      <CommentComposer selection={selection} />
+      <TransportProvider transport={transport}>
+        <App />
+        <CommentComposer selection={selection} />
+      </TransportProvider>
     </QueryClientProvider>,
   )
 
@@ -373,8 +385,10 @@ test('uses fetched server data and clears a confirmed POST overlay', async () =>
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <App />
-      <CommentComposer selection={selection} />
+      <TransportProvider transport={transport}>
+        <App />
+        <CommentComposer selection={selection} />
+      </TransportProvider>
     </QueryClientProvider>,
   )
 
@@ -438,8 +452,10 @@ test('merges a manual update that overlaps a successful POST', async () => {
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <App />
-      <CommentComposer selection={selection} />
+      <TransportProvider transport={transport}>
+        <App />
+        <CommentComposer selection={selection} />
+      </TransportProvider>
     </QueryClientProvider>,
   )
 
