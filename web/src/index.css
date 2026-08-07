@@ -1417,7 +1417,18 @@ button.primary-action {
 }
 
 /*
- * The hub. `height`/`overflow-y` are not decoration: the review app pins the
+ * The hub.
+ *
+ * Colours come from the dark palette in the second `:root` block above — the
+ * one the review view uses. This file also carries a legacy light-first set
+ * (`--text`, `--text-h`, `--bg`, `--border`, `--code-bg`, `--accent*`) that
+ * nothing applies any more: the app sets `color-scheme: dark` and paints
+ * `--canvas` unconditionally, so a rule reading `--text-h` paints near-black
+ * onto a near-black canvas whenever the OS is in light mode. Nothing below may
+ * reference those names, and the `h2`/`code` overrides exist because the
+ * legacy element rules near the top of this file do.
+ *
+ * `height`/`overflow-y` are not decoration either: the review app pins the
  * viewport with `body { overflow: hidden }` so its diff panes scroll on their
  * own, which would otherwise clip a merge request list taller than the window
  * with no way to scroll to the rest.
@@ -1426,34 +1437,65 @@ button.primary-action {
   box-sizing: border-box;
   height: 100vh;
   overflow-y: auto;
-  max-width: 64rem;
+  max-width: 60rem;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 24px;
+  color: var(--ink);
 }
 
 .hub-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .hub-header a {
-  color: var(--text-h);
+  color: var(--muted);
   text-decoration: none;
 }
 
-.hub-section {
-  margin-top: 2rem;
+.hub-header a:hover {
+  color: var(--delta);
 }
 
-.hub-section h3 {
-  margin: 0 0 0.5rem;
-  font: 600 0.85em/1.4 var(--heading);
+.hub-header strong {
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.hub h2 {
+  margin: 28px 0 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 640;
+  letter-spacing: -0.02em;
+}
+
+.hub h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text);
+}
+
+.hub code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--panel-soft);
+  color: var(--ink);
+  font: 11px/1.4 var(--mono);
+}
+
+.hub-section {
+  margin-top: 24px;
 }
 
 .hub-list {
@@ -1466,111 +1508,161 @@ button.primary-action {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .hub-row a {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  color: var(--text-h);
+  gap: 3px;
+  color: var(--ink);
   text-decoration: none;
 }
 
 .hub-row a:hover strong {
-  color: var(--accent);
+  color: var(--delta);
+}
+
+.hub-row strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .hub-row-meta {
-  font-size: 0.8em;
-  color: var(--text);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
 }
 
 .hub-empty,
 .hub-note {
-  margin: 0.5rem 0 0;
-  font-size: 0.85em;
-  color: var(--text);
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hub-detail {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font: 10px/1.5 var(--mono);
 }
 
 .hub-error {
-  margin: 0.5rem 0 0;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.85em;
-  border: 1px solid var(--accent-border);
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 123, 114, 0.32);
   border-radius: 6px;
-  background: var(--accent-bg);
-  color: var(--text-h);
+  background: var(--panel);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.hub-error a {
+  color: var(--delta);
 }
 
 .hub-setup {
-  max-width: 34rem;
-  margin: 4rem auto;
+  max-width: 30rem;
+  margin: 15vh auto 0;
   text-align: center;
+}
+
+.hub-setup p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .hub-cta {
   display: inline-block;
-  margin-top: 1rem;
-  padding: 0.5rem 1.1rem;
+  margin-top: 18px;
+  padding: 8px 16px;
+  border: 1px solid rgba(64, 214, 178, 0.35);
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--delta-soft);
+  color: var(--delta);
+  font-family: var(--mono);
+  font-size: 11px;
   text-decoration: none;
+}
+
+.hub-cta:hover {
+  background: rgba(64, 214, 178, 0.2);
 }
 
 .hub-open {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .hub-open input {
   flex: 1;
-  padding: 0.5rem 0.7rem;
-  font: inherit;
-  font-size: 0.9em;
-  color: var(--text-h);
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
 }
 
 .hub-settings label {
   display: block;
-  margin-top: 1rem;
-  font-size: 0.85em;
-  color: var(--text);
+  margin-top: 14px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .hub-settings input {
   display: block;
   width: 100%;
-  margin-top: 0.3rem;
-  padding: 0.5rem 0.7rem;
-  font: inherit;
-  font-size: 0.9em;
-  color: var(--text-h);
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  margin-top: 6px;
 }
 
-.hub-settings button,
-.hub-open button,
-.hub-row button {
-  padding: 0.45rem 0.9rem;
-  font: inherit;
-  font-size: 0.85em;
-  color: var(--text-h);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+.hub input {
+  padding: 7px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  outline: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font: 12px/1.5 var(--sans);
+}
+
+.hub input::placeholder {
+  color: var(--faint);
+}
+
+.hub input:focus {
+  border-color: rgba(64, 214, 178, 0.55);
+  box-shadow: 0 0 0 2px rgba(64, 214, 178, 0.08);
+}
+
+.hub button {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--hairline-bright);
+  border-radius: 5px;
+  background: var(--panel-soft);
+  color: var(--muted);
   cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.hub button:hover {
+  color: var(--ink);
+}
+
+.hub button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .hub-settings > button {
-  margin-top: 1rem;
-  border-color: var(--accent-border);
+  margin-top: 18px;
+  border-color: rgba(64, 214, 178, 0.35);
+  background: var(--delta-soft);
+  color: var(--delta);
 }

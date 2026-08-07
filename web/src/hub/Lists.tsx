@@ -12,6 +12,31 @@ import { hubRequest, type HostSummary } from './api'
 import { parseMergeRequestUrl } from './mrUrl'
 import { buildReviewHash } from './route'
 
+/**
+ * Human sentences for the codes the worker attaches to a single host, so the
+ * page never shows a user a bare `gitlab_authentication_failed`. Wording
+ * tracks `review/ErrorState.tsx`, which explains the same conditions once the
+ * user is inside a review. `permission_missing` is absent on purpose — it has
+ * its own branch below, with a button.
+ */
+const HOST_ERRORS: Record<string, string> = {
+  host_not_configured:
+    'Delta has no token stored for this host. Add it again in settings.',
+  gitlab_authentication_failed:
+    'GitLab rejected the credentials Delta holds for this host. Renew them in settings.',
+  gitlab_access_denied:
+    'This GitLab account is not allowed to list merge requests on this host.',
+  gitlab_not_found:
+    'GitLab did not recognise this host’s API address. Check the hostname in settings.',
+  gitlab_rate_limited: 'GitLab is rate limiting Delta. Wait briefly, then retry.',
+  gitlab_timeout: 'GitLab did not answer in time. Retry when it is responsive.',
+  gitlab_unavailable: 'GitLab is unavailable. Retry when it recovers.',
+}
+
+function describeHostError(code: string): string {
+  return HOST_ERRORS[code] ?? 'Delta could not load merge requests from this host.'
+}
+
 function MergeRequestRow({
   hostId,
   item,
@@ -148,6 +173,28 @@ export function Lists() {
   return (
     <>
       <OpenByUrl hosts={hosts.data} />
+      {/*
+        A rejected `listMergeRequests` is a different situation from the
+        per-host errors below: the worker never got far enough to report on any
+        host. Without this branch `summaries.data` stays undefined and the page
+        renders the box above and nothing else — no message, no retry, no sign
+        anything failed.
+      */}
+      {summaries.isLoading ? (
+        <p className="hub-note" aria-live="polite">
+          Loading merge requests…
+        </p>
+      ) : null}
+      {summaries.isError ? (
+        <p className="hub-error" role="alert">
+          Could not load your merge requests. Delta’s background service did
+          not answer; retry, and reload this page if it keeps failing.{' '}
+          <button type="button" onClick={() => void summaries.refetch()}>
+            Retry
+          </button>
+          <span className="hub-detail">{summaries.error.message}</span>
+        </p>
+      ) : null}
       {summaries.data?.map((summary) => (
         <div key={summary.hostId}>
           <h2>{summary.host ?? summary.hostId}</h2>
@@ -161,10 +208,11 @@ export function Lists() {
             </p>
           ) : summary.error ? (
             <p className="hub-error">
-              Could not load merge requests ({summary.error}).{' '}
+              {describeHostError(summary.error)}{' '}
               <a href="#/settings">
                 Reconnect {summary.host ?? summary.hostId}
               </a>
+              <span className="hub-detail">{summary.error}</span>
             </p>
           ) : (
             <>

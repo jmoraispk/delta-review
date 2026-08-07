@@ -10,11 +10,16 @@ const fake = createFakeBrowser() as ReturnType<typeof createFakeBrowser> & {
 }
 let hosts: unknown[] = []
 let summaries: unknown[] = []
+/** Overridable so a test can make `listMergeRequests` fail or hang. */
+let replyToListMergeRequests = async (): Promise<unknown> => ({
+  ok: true,
+  data: summaries,
+})
 fake.runtime = {
   sendMessage: async (message) => {
     const { op } = message as { op: string }
     if (op === 'listHosts') return { ok: true, data: hosts }
-    if (op === 'listMergeRequests') return { ok: true, data: summaries }
+    if (op === 'listMergeRequests') return replyToListMergeRequests()
     return { ok: true, data: null }
   },
 }
@@ -37,8 +42,13 @@ beforeEach(() => {
   window.location.hash = ''
   hosts = []
   summaries = []
+  replyToListMergeRequests = async () => ({ ok: true, data: summaries })
   fake.reset()
 })
+
+const ONE_HOST = [
+  { id: 'h', host: 'gitlab.example.com', userId: 7, username: 'j' },
+]
 
 test('with no hosts it shows the setup card, not empty lists', async () => {
   renderHub()
@@ -109,6 +119,81 @@ test('a host that fails to load is reported without hiding the others', async ()
   ]
   renderHub()
   expect(await screen.findByText(/Reconnect gitlab.example.com/i)).toBeInTheDocument()
+})
+
+test('a per-host failure reads as a sentence, not a machine code', async () => {
+  hosts = ONE_HOST
+  summaries = [
+    {
+      hostId: 'h',
+      host: 'gitlab.example.com',
+      error: 'gitlab_authentication_failed',
+    },
+  ]
+  renderHub()
+
+  expect(
+    await screen.findByText(/GitLab rejected the credentials Delta holds/i),
+  ).toBeInTheDocument()
+  // The raw code stays available, but not as the sentence the user reads.
+  expect(
+    screen.getByText('gitlab_authentication_failed'),
+  ).toHaveClass('hub-detail')
+})
+
+test('a rejected merge request load explains itself and retries', async () => {
+  const user = userEvent.setup()
+  hosts = ONE_HOST
+  summaries = [
+    {
+      hostId: 'h',
+      host: 'gitlab.example.com',
+      reviewing: {
+        items: [
+          {
+            id: 1,
+            iid: 42,
+            title: 'Improve parser errors',
+            web_url: 'https://gitlab.example.com/g/p/-/merge_requests/42',
+            project_id: 1,
+            references: { full: 'g/p!42' },
+            updated_at: '2026-08-01T10:00:00Z',
+            author: { id: 3, username: 'ana', name: 'Ana' },
+          },
+        ],
+        truncated: false,
+      },
+      authored: { items: [], truncated: false },
+    },
+  ]
+  replyToListMergeRequests = async () => ({
+    ok: false,
+    error: { code: 'delta_internal_error', message: 'Storage read failed', status: 500 },
+  })
+  renderHub()
+
+  expect(
+    await screen.findByText(/Could not load your merge requests/i),
+  ).toBeInTheDocument()
+  expect(screen.getByText('Storage read failed')).toBeInTheDocument()
+
+  replyToListMergeRequests = async () => ({ ok: true, data: summaries })
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+  expect(await screen.findByText('Improve parser errors')).toBeInTheDocument()
+  expect(
+    screen.queryByText(/Could not load your merge requests/i),
+  ).not.toBeInTheDocument()
+})
+
+test('the page says it is loading rather than flashing empty', async () => {
+  hosts = ONE_HOST
+  replyToListMergeRequests = () => new Promise<unknown>(() => {})
+  renderHub()
+
+  expect(
+    await screen.findByText(/Loading merge requests/i),
+  ).toBeInTheDocument()
 })
 
 test('settings offers to re-grant a host whose permission was withdrawn', async () => {
