@@ -8,11 +8,16 @@ interface ErrorStateProps {
 
 /**
  * The same screen serves two products that hold GitLab credentials in
- * different places. Under `uvx delta-review` (`targetKey === 'proxy'`) the
- * token belongs to `glab` and Delta never sees one, so telling that user to
- * renew Delta's credentials points them at something their install does not
- * have. In the extension the opposite is true: `glab` need not be installed
- * at all. Anything that names a credential holder has to say which.
+ * different places. Under `uvx delta-review` (`targetKey === 'proxy'`) Delta
+ * stores no token of its own, so telling that user to renew Delta's
+ * credentials points them at something their install does not have. It has
+ * two sources instead, and `resolve_token` in `security.py` returns
+ * `GITLAB_TOKEN` from the launch environment before it consults `glab` — so
+ * naming only `glab` sends anyone who launched with the variable set to
+ * re-authenticate something that provably cannot change the outcome. The
+ * server does not report which source won, so name both in precedence order
+ * and let the reader recognise their own case. In the extension neither
+ * applies: it holds its own token and `glab` need not be installed at all.
  */
 function errorCopy(
   error: Error,
@@ -28,8 +33,11 @@ function errorCopy(
     return {
       heading: 'GitLab authentication failed',
       guidance: isProxy
-        ? 'GitLab rejected the credentials glab holds for this host. Run ' +
-          'glab auth login for it, then retry.'
+        ? 'GitLab rejected the credentials the CLI sent for this host. It ' +
+          'uses GITLAB_TOKEN when that is set in the environment you ' +
+          'launched it from, and the token glab holds otherwise. Replace ' +
+          'whichever applies — a fresh GITLAB_TOKEN, or glab auth login — ' +
+          'then relaunch and retry.'
         : 'GitLab rejected the credentials Delta holds for this host. Renew ' +
           'them in Delta settings, then retry.',
       mark: '401',
@@ -81,7 +89,9 @@ function errorCopy(
       heading: 'Access denied',
       guidance: isProxy
         ? 'This GitLab account cannot see this merge request. Check your ' +
-          'project access, and which account glab is signed in as, then retry.'
+          'project access, and which account the CLI signed in as — ' +
+          'GITLAB_TOKEN when that is set in the environment you launched it ' +
+          'from, otherwise glab — then retry.'
         : 'This GitLab account cannot see this merge request. Check your ' +
           'project access, then retry.',
       mark: '403',

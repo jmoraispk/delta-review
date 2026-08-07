@@ -35,6 +35,20 @@ jobs:
             exit 1
           fi
 
+      # make-update-manifests.mjs throws on the placeholder too, but it runs
+      # after `web-ext sign` has already spent this version's AMO submission —
+      # so retrying would hit a duplicate-version rejection and cost a version
+      # bump and a re-tag. Same reasoning as the version check above: validate
+      # it before anything irreversible happens, and leave the throw in the
+      # script as a backstop for anyone running it outside this workflow.
+      - name: Check the Chrome extension id is real
+        run: |
+          id=$(node -p "JSON.parse(require('fs').readFileSync('web/src/extension/id.json', 'utf8')).chromeExtensionId")
+          if ! node -e 'process.exit(/^[a-p]{32}$/.test(process.argv[1]) ? 0 : 1)' "$id"; then
+            echo "::error::web/src/extension/id.json says $id, which is not a Chrome extension id. Put the 32-character id (letters a-p only) that Chrome derives from the CRX signing key in CRX_PRIVATE_KEY there — load the packed CRX once and chrome://extensions shows it — and use the same id in docs/install/index.html."
+            exit 1
+          fi
+
       - run: npm ci --prefix web
       - run: npm test --prefix web -- --run
       - run: npm run build:extension --prefix web

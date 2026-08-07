@@ -45,15 +45,21 @@ test.each([
   expect(screen.getByRole('heading', { name: heading })).toBeVisible()
 })
 
-test('tells a CLI user to renew the credentials glab holds, not Delta', () => {
+test('names both CLI credential sources in precedence order, not Delta', () => {
   renderErrorState(
     new ApiError(401, 'unauthorized', 'gitlab_authentication_failed'),
     { targetKey: 'proxy' },
   )
 
-  // Delta holds no GitLab credentials under `uvx delta-review`: glab does.
-  expect(guidance()).toHaveTextContent(/credentials glab holds/i)
-  expect(guidance()).toHaveTextContent(/glab auth login/i)
+  // Delta holds no GitLab credentials under `uvx delta-review`. Two other
+  // things can, and `resolve_token` returns GITLAB_TOKEN before it asks glab,
+  // so a user who launched with the variable set can run `glab auth login`
+  // all day and still get the same 401. Both have to be named, in the order
+  // the server tries them, or half these users are sent somewhere useless.
+  const text = guidance().textContent ?? ''
+  expect(text).toMatch(/GITLAB_TOKEN/)
+  expect(text).toMatch(/glab auth login/i)
+  expect(text.indexOf('GITLAB_TOKEN')).toBeLessThan(text.indexOf('glab auth'))
   expect(guidance()).not.toHaveTextContent(/Delta holds/i)
 })
 
@@ -69,15 +75,18 @@ test('tells an extension user to renew the credentials Delta holds', () => {
   expect(guidance()).not.toHaveTextContent(/glab/i)
 })
 
-test('only mentions glab access on the deployment that uses it', () => {
+test('only names the CLI credential sources on the deployment that has them', () => {
   const cli = renderErrorState(new ApiError(403, 'forbidden'), {
     targetKey: 'proxy',
   })
-  expect(guidance()).toHaveTextContent(/glab is signed in as/i)
+  expect(guidance()).toHaveTextContent(/which account the CLI signed in as/i)
+  expect(guidance()).toHaveTextContent(/GITLAB_TOKEN/)
+  expect(guidance()).toHaveTextContent(/otherwise glab/i)
   cli.unmount()
 
   renderErrorState(new ApiError(403, 'forbidden'), { targetKey: 'h/g/p/42' })
   expect(guidance()).not.toHaveTextContent(/glab/i)
+  expect(guidance()).not.toHaveTextContent(/GITLAB_TOKEN/)
 })
 
 test('surfaces the unknown outcome of a write the transport refused to retry', () => {
