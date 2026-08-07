@@ -67,6 +67,23 @@ glab auth status --hostname gitlab.example.com
 uvx delta-review https://gitlab.com/group/project/-/merge_requests/42
 ```
 
+## Browser extension
+
+Delta also runs as a browser extension, with no local Python required. It adds
+a toolbar hub listing merge requests awaiting your review, and opens the same
+review interface in a tab.
+
+**[Install Delta Review](https://jmoraispk.github.io/delta-review/install/)**
+
+The extension authenticates with a GitLab personal access token scoped to
+`api`, stored locally and only ever sent to the hosts you add. The command-line
+version continues to work exactly as before and needs no token — it reuses
+`glab`.
+
+Publishing it is documented in [docs/extension-release.md](./docs/extension-release.md):
+signing key, extension ID, repository secrets, and how to tag a release and
+check that it installs and updates.
+
 ## Current scope
 
 DeltaReview reads text diffs and lets you create, reply to, resolve, and

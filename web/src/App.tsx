@@ -1,13 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 
-import { api } from './api/client'
-import type {
-  DeltaConfig,
-  DiffFile,
-  Discussion,
-  MergeRequest,
-} from './api/types'
 import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
 import { diffStats, diffStatsLabel } from './review/diffStats'
@@ -15,6 +8,7 @@ import {
   discussionsQueryKey,
   mergeFetchedDiscussions,
 } from './review/discussionCache'
+import { useTransport } from './transport/context'
 
 const DiffViewer = lazy(() =>
   import('./review/DiffViewer').then((module) => ({
@@ -31,36 +25,38 @@ type UpdateState = 'idle' | 'updating' | 'success' | 'error'
 
 export function App() {
   const queryClient = useQueryClient()
+  const transport = useTransport()
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
   const [showGeneralDiscussions, setShowGeneralDiscussions] =
     useState(false)
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
   const diffFocusRef = useRef<HTMLElement>(null)
   const config = useQuery({
-    queryKey: ['config'],
-    queryFn: () => api<DeltaConfig>('/api/config'),
+    queryKey: ['config', transport.targetKey],
+    queryFn: () => transport.getConfig(),
     staleTime: 30_000,
   })
   const mergeRequest = useQuery({
-    queryKey: ['merge-request'],
-    queryFn: ({ signal }) => api<MergeRequest>('/api/mr', { signal }),
+    queryKey: ['merge-request', transport.targetKey],
+    queryFn: ({ signal }) => transport.getMergeRequest(signal),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
   const diffs = useQuery({
-    queryKey: ['diffs'],
-    queryFn: ({ signal }) => api<DiffFile[]>('/api/diffs', { signal }),
+    queryKey: ['diffs', transport.targetKey],
+    queryFn: ({ signal }) => transport.getDiffs(signal),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
   const discussions = useQuery({
-    queryKey: discussionsQueryKey,
+    queryKey: discussionsQueryKey(transport.targetKey),
     queryFn: async ({ signal }) =>
       mergeFetchedDiscussions(
         queryClient,
-        await api<Discussion[]>('/api/discussions', { signal }),
+        transport.targetKey,
+        await transport.getDiscussions(signal),
       ),
     retry: false,
     refetchOnWindowFocus: false,

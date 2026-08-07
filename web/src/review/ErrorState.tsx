@@ -1,11 +1,28 @@
 import { ApiError } from '../api/client'
+import { useTransport } from '../transport/context'
 
 interface ErrorStateProps {
   error: Error
   onRetry: () => void
 }
 
-function errorCopy(error: Error): {
+/**
+ * The same screen serves two products that hold GitLab credentials in
+ * different places. Under `uvx delta-review` (`targetKey === 'proxy'`) Delta
+ * stores no token of its own, so telling that user to renew Delta's
+ * credentials points them at something their install does not have. It has
+ * two sources instead, and `resolve_token` in `security.py` returns
+ * `GITLAB_TOKEN` from the launch environment before it consults `glab` — so
+ * naming only `glab` sends anyone who launched with the variable set to
+ * re-authenticate something that provably cannot change the outcome. The
+ * server does not report which source won, so name both in precedence order
+ * and let the reader recognise their own case. In the extension neither
+ * applies: it holds its own token and `glab` need not be installed at all.
+ */
+function errorCopy(
+  error: Error,
+  isProxy: boolean,
+): {
   heading: string
   guidance: string
   mark: string
@@ -15,8 +32,35 @@ function errorCopy(error: Error): {
   if (code === 'gitlab_authentication_failed') {
     return {
       heading: 'GitLab authentication failed',
-      guidance: 'Run glab auth login for this GitLab host, then retry.',
+      guidance: isProxy
+        ? 'GitLab rejected the credentials the CLI sent for this host. It ' +
+          'uses GITLAB_TOKEN when that is set in the environment you ' +
+          'launched it from, and the token glab holds otherwise. Replace ' +
+          'whichever applies — a fresh GITLAB_TOKEN, or glab auth login — ' +
+          'then relaunch and retry.'
+        : 'GitLab rejected the credentials Delta holds for this host. Renew ' +
+          'them in Delta settings, then retry.',
       mark: '401',
+    }
+  }
+  if (code === 'permission_missing') {
+    return {
+      heading: 'Delta lost access to this GitLab host',
+      guidance:
+        'The browser permission for this host was withdrawn. Grant it again ' +
+        'from Delta settings, then retry.',
+      mark: '403',
+    }
+  }
+  if (code === 'extension_unavailable') {
+    // The transport words this one per operation: a read that ran out of
+    // retries and a write it deliberately refused to retry need different
+    // advice, and the write's "may or may not have been posted" is the whole
+    // point. Show that message rather than a generic line that hides it.
+    return {
+      heading: 'Delta background service unavailable',
+      guidance: error.message,
+      mark: '503',
     }
   }
   if (code === 'diff_truncated') {
@@ -43,7 +87,13 @@ function errorCopy(error: Error): {
   if (status === 403) {
     return {
       heading: 'Access denied',
-      guidance: 'Check your GitLab permissions and glab authentication.',
+      guidance: isProxy
+        ? 'This GitLab account cannot see this merge request. Check your ' +
+          'project access, and which account the CLI signed in as — ' +
+          'GITLAB_TOKEN when that is set in the environment you launched it ' +
+          'from, otherwise glab — then retry.'
+        : 'This GitLab account cannot see this merge request. Check your ' +
+          'project access, then retry.',
       mark: '403',
     }
   }
@@ -70,13 +120,14 @@ function errorCopy(error: Error): {
   }
   return {
     heading: 'Review could not be loaded',
-    guidance: 'Check the local server and GitLab connection, then retry.',
+    guidance: 'Check that Delta and GitLab are both reachable, then retry.',
     mark: '!',
   }
 }
 
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
-  const copy = errorCopy(error)
+  const transport = useTransport()
+  const copy = errorCopy(error, transport.targetKey === 'proxy')
   return (
     <main className="state-screen error-state" role="alert">
       <div className="state-mark error-code" aria-hidden="true">

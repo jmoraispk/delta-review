@@ -1,0 +1,53 @@
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { build } from 'vite'
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const buildDir = resolve(root, 'dist-extension/build')
+const targets = ['chrome', 'firefox']
+
+function readManifest(name) {
+  return JSON.parse(
+    readFileSync(resolve(root, `src/extension/${name}.json`), 'utf-8'),
+  )
+}
+
+async function main() {
+  rmSync(resolve(root, 'dist-extension'), { recursive: true, force: true })
+
+  // 1. Pages, code-split as usual.
+  await build({ configFile: resolve(root, 'vite.extension.config.ts') })
+
+  // 2. Background, as one self-contained IIFE so both browsers can load it.
+  await build({
+    configFile: false,
+    root,
+    build: {
+      outDir: 'dist-extension/build',
+      emptyOutDir: false,
+      lib: {
+        entry: resolve(root, 'src/extension/background.ts'),
+        formats: ['iife'],
+        name: 'DeltaBackground',
+        fileName: () => 'background.js',
+      },
+    },
+  })
+
+  const base = readManifest('manifest.base')
+  for (const target of targets) {
+    const out = resolve(root, `dist-extension/${target}`)
+    mkdirSync(out, { recursive: true })
+    cpSync(buildDir, out, { recursive: true })
+    writeFileSync(
+      resolve(out, 'manifest.json'),
+      `${JSON.stringify({ ...base, ...readManifest(`manifest.${target}`) }, null, 2)}\n`,
+    )
+  }
+  rmSync(buildDir, { recursive: true, force: true })
+  console.log('Built dist-extension/chrome and dist-extension/firefox')
+}
+
+await main()

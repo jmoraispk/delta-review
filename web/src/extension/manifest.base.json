@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Delta Review",
+  "description": "Review GitLab merge requests without leaving the browser.",
+  "version": "0.1.0",
+  "action": { "default_title": "Delta Review" },
+  "permissions": ["storage", "activeTab"],
+  "optional_host_permissions": ["https://*/*"]
+}

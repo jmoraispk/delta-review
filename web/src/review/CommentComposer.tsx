@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
-import { api } from '../api/client'
 import type { PostingResult } from '../api/types'
+import { useTransport } from '../transport/context'
 import { recordPostedDiscussion } from './discussionCache'
 import type { BackendSelection } from './selection'
 
@@ -24,16 +24,14 @@ export function CommentComposer({
   onCancel,
 }: CommentComposerProps) {
   const queryClient = useQueryClient()
+  const transport = useTransport()
   const [draft, setDraft] = useState('')
   const createComment = useMutation({
     mutationFn: (body: string) =>
-      api<PostingResult>('/api/discussions', {
-        method: 'POST',
-        body: JSON.stringify({ ...selection, body }),
-      }),
+      transport.createDiscussion({ ...selection, body }),
     onSuccess: (result) => {
       setDraft('')
-      recordPostedDiscussion(queryClient, result.discussion)
+      recordPostedDiscussion(queryClient, transport.targetKey, result.discussion)
       onPosted?.(result)
     },
   })

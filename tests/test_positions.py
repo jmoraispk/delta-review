@@ -88,3 +88,21 @@ def test_legacy_added_range_uses_string_coordinates_and_explicit_nulls() -> None
         "old_line": None,
         "new_line": "14",
     }
+
+
+def test_fixture_corpus_matches_the_implementation() -> None:
+    import json
+    from pathlib import Path
+
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures" / "positions.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    version = Version(**fixture["version"])
+    for case in fixture["cases"]:
+        selection = DiffSelection(**case["selection"])
+        assert build_position(selection, version) == case["standard"], case["name"]
+        assert (
+            build_legacy_position(selection, version) == case["legacy"]
+        ), case["name"]
