@@ -24,6 +24,7 @@ export interface MergeRequestPage {
 async function list(
   client: GitLabClient,
   params: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<MergeRequestPage> {
   const items = await client.request<MergeRequestSummary[]>(
     'GET',
@@ -36,6 +37,7 @@ async function list(
         per_page: String(PAGE_SIZE),
         ...params,
       },
+      signal,
     },
   )
   return { items, truncated: items.length >= PAGE_SIZE }
@@ -44,13 +46,15 @@ async function list(
 export function listReviewRequested(
   client: GitLabClient,
   userId: number,
+  signal?: AbortSignal,
 ): Promise<MergeRequestPage> {
-  return list(client, { reviewer_id: String(userId) })
+  return list(client, { reviewer_id: String(userId) }, signal)
 }
 
 export function listAuthored(
   client: GitLabClient,
   userId: number,
+  signal?: AbortSignal,
 ): Promise<MergeRequestPage> {
-  return list(client, { author_id: String(userId) })
+  return list(client, { author_id: String(userId) }, signal)
 }

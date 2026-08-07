@@ -9,6 +9,7 @@ export interface GitLabUser {
 
 export async function getCurrentUser(
   client: GitLabClient,
+  signal?: AbortSignal,
 ): Promise<GitLabUser> {
-  return client.request<GitLabUser>('GET', '/user')
+  return client.request<GitLabUser>('GET', '/user', { signal })
 }

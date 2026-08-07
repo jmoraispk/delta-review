@@ -51,6 +51,10 @@ test('filters review-requested merge requests by reviewer', async () => {
   expect(query).toContain('reviewer_id=7')
   expect(query).toContain('state=opened')
   expect(query).toContain('scope=all')
+  // Pinned to the literal 100, not PAGE_SIZE: the truncation test reads the
+  // same constant the request does, so only a literal here catches a shrunk
+  // page size silently under-reporting truncation.
+  expect(query).toContain('per_page=100')
 })
 
 test('filters authored merge requests by author', async () => {
