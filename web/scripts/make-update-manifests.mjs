@@ -9,6 +9,19 @@ const { version } = JSON.parse(
 const { chromeExtensionId } = JSON.parse(
   readFileSync(resolve(root, 'src/extension/id.json'), 'utf-8'),
 )
+// Chrome extension ids are 32 characters drawn from a-p. Shipping the
+// placeholder instead would still produce a green release: an updates.xml no
+// browser can match, and an ExtensionSettings policy that fails Chrome's
+// schema and is discarded without a word to the user.
+if (!/^[a-p]{32}$/.test(chromeExtensionId)) {
+  throw new Error(
+    `web/src/extension/id.json holds "${chromeExtensionId}", which is not a ` +
+      'Chrome extension id. Put the 32-character id (letters a-p only) that ' +
+      'Chrome derives from the CRX signing key in CRX_PRIVATE_KEY there — ' +
+      'load the packed CRX once and chrome://extensions shows it — and use ' +
+      'the same id in docs/install/index.html.',
+  )
+}
 const geckoId = JSON.parse(
   readFileSync(resolve(root, 'src/extension/manifest.firefox.json'), 'utf-8'),
 ).browser_specific_settings.gecko.id

@@ -21,6 +21,20 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # A tag that disagrees with the manifest ships the wrong version. AMO
+      # rejects a duplicate version only after consuming the signing
+      # submission, and even a successful run would publish update manifests
+      # advertising the old version, so no installed browser would ever see the
+      # release. Checking before the build makes a mismatch cost nothing.
+      - name: Check the manifest version matches the tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('web/src/extension/manifest.base.json', 'utf8')).version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::web/src/extension/manifest.base.json says $version, but the tag is $GITHUB_REF_NAME. Set the manifest version to ${GITHUB_REF_NAME#v} and re-tag."
+            exit 1
+          fi
+
       - run: npm ci --prefix web
       - run: npm test --prefix web -- --run
       - run: npm run build:extension --prefix web
@@ -56,7 +70,17 @@ jobs:
       # resolving across every future release.
       - name: Name the XPI for a stable download link
         if: startsWith(github.ref, 'refs/tags/')
-        run: mv dist-xpi/*.xpi delta-review.xpi
+        run: |
+          shopt -s nullglob
+          xpis=(dist-xpi/*.xpi)
+          if [ ${#xpis[@]} -eq 0 ]; then
+            echo "::error::web-ext signed nothing: no .xpi in dist-xpi."
+            exit 1
+          fi
+          # Renaming a glob that matched twice would fail with "target is not a
+          # directory"; take the first match and say which one was published.
+          echo "Publishing ${xpis[0]} as delta-review.xpi"
+          mv "${xpis[0]}" delta-review.xpi
 
       - name: Build update manifests
         run: node web/scripts/make-update-manifests.mjs
@@ -64,6 +88,10 @@ jobs:
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          # Defaults to false, which would publish a green release missing, say,
+          # updates.xml — after which installed browsers quietly stop updating
+          # and nothing anywhere reports a problem.
+          fail_on_unmatched_files: true
           files: |
             delta-review-chrome.zip
             delta-review.crx
