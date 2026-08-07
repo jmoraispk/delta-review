@@ -75,6 +75,8 @@ export interface DiffFileSectionProps {
   mode: DiffMode
   theme: DiffTheme
   showComments: boolean
+  /** Height the stream reserved, held while the diff is still building. */
+  reservedHeight?: number
   onInlineCountChange?: (count: number) => void
   onRequestShowComments?: () => void
   onSelectionChange?: (selection: SelectionRange | null) => void
@@ -150,6 +152,7 @@ export function DiffFileSection({
   mode,
   theme,
   showComments,
+  reservedHeight,
   onInlineCountChange,
   onRequestShowComments,
   onSelectionChange,
@@ -536,6 +539,11 @@ export function DiffFileSection({
       <section
         className="diff-stage diff-loading"
         aria-label={file.new_path}
+        // Hold the space the stream reserved for this file. Collapsing to the
+        // height of this message would yank everything below it upward for a
+        // frame, which is what tears the view when scrolling up into a file
+        // whose diff is still being built.
+        style={reservedHeight ? { minHeight: reservedHeight } : undefined}
       >
         Preparing diff…
       </section>

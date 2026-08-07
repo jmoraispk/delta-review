@@ -431,9 +431,8 @@ test('large review stays responsive while rendering and scrolling', async ({
   expect(metrics.cachedSwitchMs).toBeLessThan(100)
   expect(metrics.reviewScrollTop).toBeGreaterThan(0)
   expect(metrics.scrollLongTasksOver100Ms).toBe(0)
-  expect(metrics.firstHighlighter).toBe('')
+  // Syntax tokens now come back from the worker with the diff, so the first
+  // paint is already highlighted instead of arriving plain and upgrading.
+  expect(metrics.firstHighlighter).toBe('lowlight')
   expect(metrics.highlightMs).not.toBeNull()
-  expect(metrics.highlightMs).toBeGreaterThanOrEqual(
-    metrics.firstDiffMs ?? Number.POSITIVE_INFINITY,
-  )
 })

@@ -10,9 +10,18 @@ import {
 
 import type { DiffFile, Discussion } from '../api/types'
 import { DiffFileSection } from './DiffFileSection'
+import { toDiffData } from './diffAdapter'
 import { estimateSectionHeight } from './diffMetrics'
 import { preferredTheme, watchTheme } from './diffTheme'
-import type { DiffMode } from './diffWorkerClient'
+import {
+  bundleCacheKey,
+  cachedBundle,
+  requestBundle,
+  type DiffMode,
+} from './diffWorkerClient'
+
+/** Files on each side of the window whose diffs are built ahead of time. */
+const PREFETCH_SECTIONS = 4
 
 /**
  * An explicit request to scroll to a file. The nonce distinguishes two
@@ -182,6 +191,36 @@ export function DiffStream({
     if (first.index !== activeIndex) onActiveIndexChange(first.index)
   }, [activeIndex, items, onActiveIndexChange, scrollOffset])
 
+  // Warm the diffs just outside the window while the main thread is idle, so
+  // a section that scrolls into view already has its bundle and mounts
+  // without a build. Keeps few files rendered while still feeling preloaded.
+  const firstIndex = items[0]?.index ?? 0
+  const lastIndex = items[items.length - 1]?.index ?? 0
+  useEffect(() => {
+    if (!files.length) return
+    const from = Math.max(0, firstIndex - PREFETCH_SECTIONS)
+    const to = Math.min(files.length - 1, lastIndex + PREFETCH_SECTIONS)
+
+    const warm = () => {
+      for (let index = from; index <= to; index += 1) {
+        const file = files[index]
+        if (!file) continue
+        const key = bundleCacheKey(file.new_path || file.old_path, theme, mode)
+        if (cachedBundle(key) !== undefined) continue
+        void requestBundle(key, toDiffData(file), theme, mode).catch(
+          () => undefined,
+        )
+      }
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(warm, { timeout: 500 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(warm, 50)
+    return () => window.clearTimeout(id)
+  }, [files, firstIndex, lastIndex, mode, theme])
+
   // A zero-height measurement means the section is not laid out yet; taking it
   // would collapse the reserved space and wreck the scrollbar. Sub-pixel
   // differences from the estimate are ignored too: applying them re-flows
@@ -256,6 +295,7 @@ export function DiffStream({
                   discussions={discussions}
                   file={file}
                   mode={mode}
+                  reservedHeight={estimates[item.index]}
                   showComments={showComments}
                   theme={theme}
                   onInlineCountChange={(count) =>
