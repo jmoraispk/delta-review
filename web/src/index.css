@@ -1861,3 +1861,20 @@ button.primary-action {
 .hub-settings > .primary-action {
   margin-top: 18px;
 }
+
+/* Development builds only; see web/src/extension/devReload.tsx. */
+.dev-reload {
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.dev-reload:hover {
+  border-color: var(--delta);
+  color: var(--ink);
+}

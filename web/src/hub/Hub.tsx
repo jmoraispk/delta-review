@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import App from '../App'
+import { DevReload } from '../extension/devReload'
 import { TransportProvider } from '../transport/context'
 import { createRuntimeTransport } from '../transport/runtime'
 import { Lists } from './Lists'
@@ -44,6 +45,7 @@ export function Hub() {
           <span>delta</span>
         </a>
         <nav className="topbar-meta">
+          <DevReload />
           <a href="#/settings">Settings</a>
         </nav>
       </header>
