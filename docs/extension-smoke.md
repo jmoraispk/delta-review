@@ -89,46 +89,65 @@ not failed.
     whether it fetched `updates.xml` / `updates.json` at all; if the redirect is
     the problem, pin the update URLs to a fixed host you control instead of
     `latest/download`.
-Check 23 runs only against a development build (`npm run build:extension
+Checks 23 and 24 run only against a development build (`npm run build:extension
 --prefix web -- --dev`). Release builds do not render the button at all, so on
-those there is nothing to click and the check is *not applicable*, not failed.
+those there is nothing to click and the checks are *not applicable*, not failed.
 
-23. **"Reload extension" closes the tab it was clicked from.** Load the
-    development build and open the hub. Expected: a "Reload extension" button
-    sits in the hub header, and clicking it reloads the extension from disk and
-    **closes this tab outright** — it does not go blank, it disappears. Reopen
-    the hub from the toolbar icon to carry on; the extension picks up whatever
-    was last built.
+23. **What "Reload extension" does to the hub tab, and whether the reload
+    works at all.** These are one check because the automated probe could not
+    separate them, and a tester with a real browser can settle both in one go.
 
-    This was measured, not assumed: Chrome 149 via Playwright, five runs,
-    headless and headed alike, closed the hub tab every time. Chrome destroys
-    the page target, so nothing is left to refresh — which is why the button's
-    title says to open the hub again rather than to refresh. Three recovery
-    sequences were tried and all failed, so the button deliberately does nothing
-    but reload: `tabs.reload()` either side of `runtime.reload()` left the tab
-    closed regardless of ordering, and `tabs.create()` beforehand left a hollow
-    tab that renders the hub's title with no `chrome` global and an unmounted
-    React root — convincing at a glance and completely dead.
+    Load the development build, open the hub, change a string in the source and
+    rebuild, then click "Reload extension". Record two things: what happened to
+    **this tab**, and whether the extension **came back** carrying the new
+    string (reopen the hub from the toolbar icon to look).
 
-    If the tab instead survives blank, or the button is missing from a `--dev`
-    build, note it: the first means Chrome's teardown changed and the title's
-    wording should soften to "refresh or reopen"; the second means the
-    `__DELTA_DEV__` define did not reach the bundle.
+    What the probe measured, and what it could not: in Chrome 149 under
+    Playwright, across seven runs — headless and headed, with the extension
+    loaded three different ways — clicking the button closed the hub tab every
+    time. But in every one of those runs the extension **also never came back**:
+    `chrome-extension://` URLs returned `ERR_BLOCKED_BY_CLIENT` for thirty
+    seconds and no service worker returned. That is a permanent unload, not a
+    reload, and it is near-certainly an artefact of driving Chrome under
+    automation rather than real behaviour.
 
-24. **The extension actually comes back, and Firefox behaves the same way.**
-    Both halves of this are unverified and neither could be settled by the
-    probe. Chrome, launched with `--load-extension` under automation, never
-    restored the extension after `runtime.reload()` — `chrome-extension://`
-    URLs returned `ERR_BLOCKED_BY_CLIENT` for thirty seconds and no service
-    worker returned. That is near-certainly an artefact of command-line
-    extension loading rather than real behaviour, but it means check 23
-    confirms only what happens to the *tab*, never that the reload succeeded.
-    So confirm by hand, in a normally loaded unpacked extension: change a
-    string in the source, rebuild, click the button, reopen the hub, and check
-    the new string is there. If the extension does not come back, the button is
-    worse than useless and should be removed.
+    So the two outcomes are confounded, and the probe cannot tell them apart.
+    An extension that ceases to exist destroys its pages trivially; that says
+    nothing about the case this button is meant to create, where the extension
+    unloads and immediately returns. **Whether the tab closes because of the
+    teardown — which a real reload also does — or because of the permanent
+    unload, which a real reload does not, is unmeasured.** Treat "the tab
+    closes" as likely but unconfirmed, which is why the button's title hedges.
 
-    **Firefox is entirely unverified.** The probe covers Chrome only. Repeat
-    the whole of check 23 on Firefox: `browser.runtime.reload()` exists there,
-    but whether it closes the tab, blanks it, or leaves it working is unknown.
-    If Firefox misbehaves, gate the button to Chrome and say so in its title.
+    Any of these is a legitimate result; write down which you saw:
+
+    - *Tab closes, extension comes back with the new string.* The probe's
+      reading was right. Tighten the title to state closure outright.
+    - *Tab survives blank or broken, extension comes back.* Also fine, and it
+      means the closure was the artefact, not the teardown. Say so in the title
+      and drop "closes" from it.
+    - *Tab survives and keeps working.* Better than expected — the title's
+      warning can go entirely.
+    - *Extension does not come back.* The button is worse than useless and
+      should be removed.
+    - *No button in a `--dev` build.* The `__DELTA_DEV__` define did not reach
+      the bundle.
+
+    The button deliberately does nothing but `runtime.reload()`. Three recovery
+    sequences were tried and none was adopted: `tabs.reload()` either side of
+    `runtime.reload()` left the tab closed regardless of ordering, and
+    `tabs.create()` beforehand left a hollow tab rendering the hub's title with
+    no `chrome` global and an unmounted React root. Note that the last of these
+    is exactly what a page of a permanently-unloaded extension looks like, so
+    it is the same confounded observation rather than independent evidence. The
+    standing reason for adding no recovery call is that every candidate is a
+    race against the teardown, and a sequence that happens to work on one
+    machine is worse than a one-line instruction. If you find the tab survives,
+    recovery is worth revisiting — `chrome.tabs.reload()` needs no new
+    permission, which the probe did confirm directly.
+
+24. **Firefox is entirely unverified.** The probe covers Chrome only; nothing
+    in check 23 has been observed on Firefox even once. Repeat the whole of
+    check 23 there. `browser.runtime.reload()` exists in Firefox, but whether
+    it closes the tab, blanks it, or leaves it working is unknown. If Firefox
+    misbehaves, gate the button to Chrome and say so in its title.

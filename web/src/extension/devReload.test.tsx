@@ -26,19 +26,20 @@ test('reloads the extension when clicked', async () => {
   expect(reload).toHaveBeenCalledOnce()
 })
 
-// Chrome closes the hub tab outright when the extension reloads (measured in
-// Chrome 149; see check 23 in docs/extension-smoke.md). The title used to
-// promise a refresh, which is not a thing you can do to a tab that is gone.
-test('warns that the tab does not survive, and says what to do instead', async () => {
+// The hub tab closed on every measured reload, but never against an extension
+// that actually came back, so the title warns without promising. It used to
+// say the tab "needs a refresh afterwards", which asserted a remedy for a
+// specific outcome that was never confirmed. See check 23 in
+// docs/extension-smoke.md, which asks a human to settle it.
+test('warns that the tab may not survive, and names a remedy that fits either way', async () => {
   const { DevReload } = await import('./devReload')
   render(<DevReload />)
 
   const title =
     screen.getByRole('button', { name: /reload extension/i }).getAttribute('title') ?? ''
 
-  expect(title).toMatch(/does not survive/i)
-  expect(title).toMatch(/open the hub again/i)
-  expect(title).not.toMatch(/refresh/i)
+  expect(title).toMatch(/may not survive/i)
+  expect(title).toMatch(/reopen the hub/i)
 })
 
 test('renders nothing in a release build', async () => {

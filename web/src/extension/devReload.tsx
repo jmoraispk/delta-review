@@ -6,21 +6,33 @@ import browser from 'webextension-polyfill'
  * defined false there, so this compiles to `if (false)` and drops out.
  *
  * Reloading tears down every page the extension owns, including the one this
- * button lives on. Measured in Chrome 149: the hub tab is *closed outright* —
- * its page target disappears, so there is nothing left to refresh. The button
- * says so rather than leaving the disappearance unexplained.
+ * button lives on. In Chrome 149 under Playwright the hub tab was closed
+ * outright every time, so the title warns about it.
+ *
+ * That measurement is confounded, though, and the title hedges accordingly: in
+ * every one of those runs the extension also never came back, which is a
+ * permanent unload rather than a reload. An extension that ceases to exist
+ * destroys its pages trivially. Whether the tab dies from the teardown — which
+ * a real reload also does — or only from the permanent unload, which it does
+ * not, was never measured. Three ways of loading the extension were tried,
+ * headless and headed; none produced a restart under automation.
  *
  * The click deliberately does nothing but reload. Three recovery sequences
- * were tried against a real Chrome and all failed, so none of them is here:
+ * were tried and none adopted:
  *
  * - `tabs.reload()` before `runtime.reload()` — tab still closed.
  * - `runtime.reload()` before `tabs.reload()` — tab still closed; the second
  *   call does not survive long enough to run.
- * - `tabs.create()` before `runtime.reload()` — leaves a hollow tab that looks
- *   like the hub but has no `chrome` global and an unmounted React root, which
- *   is worse than no tab at all.
+ * - `tabs.create()` before `runtime.reload()` — leaves a hollow tab with no
+ *   `chrome` global and an unmounted React root. This one shares the confound
+ *   above: a hollow page is also just what a dead extension yields.
  *
- * See check 23 in docs/extension-smoke.md.
+ * The reason that stands regardless of the confound is that each candidate is a
+ * race against the teardown, and one that happens to work on a given machine is
+ * worse than a one-line instruction. `chrome.tabs.reload()` was confirmed to
+ * need no added permission, so if the tab turns out to survive, recovery is
+ * worth revisiting. Check 23 in docs/extension-smoke.md asks a human to settle
+ * it in a normally installed extension.
  */
 export function DevReload() {
   if (!__DELTA_DEV__) return null
@@ -28,7 +40,7 @@ export function DevReload() {
   return (
     <button
       className="dev-reload"
-      title="Reload the unpacked extension from disk. This tab does not survive it — open the hub again afterwards."
+      title="Reload the unpacked extension from disk. This tab may not survive it — reopen the hub if it closes or stops responding."
       type="button"
       onClick={() => browser.runtime.reload()}
     >
