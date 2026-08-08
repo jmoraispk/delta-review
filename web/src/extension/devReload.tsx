@@ -6,7 +6,7 @@ import browser from 'webextension-polyfill'
  * defined false there, so this compiles to `if (false)` and drops out.
  *
  * Reloading tears down every page the extension owns, including the one this
- * button lives on. In Chrome 149 under Playwright the hub tab was closed
+ * button lives on. Under Playwright's bundled Chromium the hub tab was closed
  * outright every time, so the title warns about it.
  *
  * That measurement is confounded, though, and the title hedges accordingly: in
