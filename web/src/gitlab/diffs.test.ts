@@ -86,6 +86,60 @@ test('throws diff_truncated when overflow persists', async () => {
   ).rejects.toMatchObject({ code: 'diff_truncated', status: 422 })
 })
 
+test('refetches raw diffs when pagination truncates', async () => {
+  const empty = { old_path: 'b.py', new_path: 'b.py', diff: '' }
+  const filled = { old_path: 'b.py', new_path: 'b.py', diff: '@@ -1 +1 @@\n-c\n+d' }
+  const seen: string[] = []
+  server.use(
+    http.get(`${MR}/diffs`, () =>
+      HttpResponse.json([FILE, empty], { headers: { 'x-next-page': '' } }),
+    ),
+    http.get(`${MR}/changes`, ({ request }) => {
+      seen.push(new URL(request.url).searchParams.get('access_raw_diffs') ?? 'absent')
+      return HttpResponse.json({ overflow: false, changes: [FILE, filled] })
+    }),
+  )
+
+  const files = await getDiffs(client(), 'platform/delta-review', 42)
+  expect(seen).toEqual(['true'])
+  expect(files.map((file) => file.diff)).toEqual([
+    '@@ -1 +1 @@\n-old\n+new',
+    '@@ -1 +1 @@\n-c\n+d',
+  ])
+})
+
+test('keeps paginated diffs when nothing is truncated', async () => {
+  let changesCalled = false
+  server.use(
+    http.get(`${MR}/diffs`, () =>
+      HttpResponse.json([FILE], { headers: { 'x-next-page': '' } }),
+    ),
+    http.get(`${MR}/changes`, () => {
+      changesCalled = true
+      return HttpResponse.json({ overflow: false, changes: [] })
+    }),
+  )
+
+  await expect(
+    getDiffs(client(), 'platform/delta-review', 42),
+  ).resolves.toHaveLength(1)
+  expect(changesCalled).toBe(false)
+})
+
+test('keeps paginated diffs when the raw refetch fails', async () => {
+  const empty = { old_path: 'b.py', new_path: 'b.py', diff: '' }
+  server.use(
+    http.get(`${MR}/diffs`, () =>
+      HttpResponse.json([FILE, empty], { headers: { 'x-next-page': '' } }),
+    ),
+    http.get(`${MR}/changes`, () => HttpResponse.json({}, { status: 403 })),
+  )
+
+  const files = await getDiffs(client(), 'platform/delta-review', 42)
+  expect(files).toHaveLength(2)
+  expect(files[1].diff).toBe('')
+})
+
 test('does not swallow a 403 from diffs', async () => {
   server.use(
     http.get(`${MR}/diffs`, () => HttpResponse.json({}, { status: 403 })),

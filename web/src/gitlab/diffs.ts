@@ -31,6 +31,35 @@ export async function getMergeRequest(
   })
 }
 
+/**
+ * Read every diff straight from the repository.
+ *
+ * GitLab applies its diff size budget across the whole merge request, so files
+ * past the budget come back without any content and without a `too_large` or
+ * `collapsed` flag. `access_raw_diffs` bypasses the budget. Returns null when
+ * the retry is unavailable, leaving the truncated diffs in place rather than
+ * losing them.
+ */
+async function rawChanges(
+  client: GitLabClient,
+  path: string,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>[] | null> {
+  try {
+    const payload = await client.request<{
+      overflow?: boolean
+      changes?: Record<string, unknown>[]
+    }>('GET', `${path}/changes`, {
+      params: { access_raw_diffs: 'true' },
+      signal,
+    })
+    if (payload.overflow) return null
+    return payload.changes?.length ? payload.changes : null
+  } catch {
+    return null
+  }
+}
+
 export async function getDiffs(
   client: GitLabClient,
   project: string,
@@ -41,6 +70,9 @@ export async function getDiffs(
   let raw: Record<string, unknown>[]
   try {
     raw = await client.paginate<Record<string, unknown>>(`${path}/diffs`, signal)
+    if (raw.some((file) => !file.diff)) {
+      raw = (await rawChanges(client, path, signal)) ?? raw
+    }
   } catch (error) {
     if (
       !(error instanceof GitLabError) ||
