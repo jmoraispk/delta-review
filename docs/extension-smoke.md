@@ -89,3 +89,46 @@ not failed.
     whether it fetched `updates.xml` / `updates.json` at all; if the redirect is
     the problem, pin the update URLs to a fixed host you control instead of
     `latest/download`.
+Check 23 runs only against a development build (`npm run build:extension
+--prefix web -- --dev`). Release builds do not render the button at all, so on
+those there is nothing to click and the check is *not applicable*, not failed.
+
+23. **"Reload extension" closes the tab it was clicked from.** Load the
+    development build and open the hub. Expected: a "Reload extension" button
+    sits in the hub header, and clicking it reloads the extension from disk and
+    **closes this tab outright** — it does not go blank, it disappears. Reopen
+    the hub from the toolbar icon to carry on; the extension picks up whatever
+    was last built.
+
+    This was measured, not assumed: Chrome 149 via Playwright, five runs,
+    headless and headed alike, closed the hub tab every time. Chrome destroys
+    the page target, so nothing is left to refresh — which is why the button's
+    title says to open the hub again rather than to refresh. Three recovery
+    sequences were tried and all failed, so the button deliberately does nothing
+    but reload: `tabs.reload()` either side of `runtime.reload()` left the tab
+    closed regardless of ordering, and `tabs.create()` beforehand left a hollow
+    tab that renders the hub's title with no `chrome` global and an unmounted
+    React root — convincing at a glance and completely dead.
+
+    If the tab instead survives blank, or the button is missing from a `--dev`
+    build, note it: the first means Chrome's teardown changed and the title's
+    wording should soften to "refresh or reopen"; the second means the
+    `__DELTA_DEV__` define did not reach the bundle.
+
+24. **The extension actually comes back, and Firefox behaves the same way.**
+    Both halves of this are unverified and neither could be settled by the
+    probe. Chrome, launched with `--load-extension` under automation, never
+    restored the extension after `runtime.reload()` — `chrome-extension://`
+    URLs returned `ERR_BLOCKED_BY_CLIENT` for thirty seconds and no service
+    worker returned. That is near-certainly an artefact of command-line
+    extension loading rather than real behaviour, but it means check 23
+    confirms only what happens to the *tab*, never that the reload succeeded.
+    So confirm by hand, in a normally loaded unpacked extension: change a
+    string in the source, rebuild, click the button, reopen the hub, and check
+    the new string is there. If the extension does not come back, the button is
+    worse than useless and should be removed.
+
+    **Firefox is entirely unverified.** The probe covers Chrome only. Repeat
+    the whole of check 23 on Firefox: `browser.runtime.reload()` exists there,
+    but whether it closes the tab, blanks it, or leaves it working is unknown.
+    If Firefox misbehaves, gate the button to Chrome and say so in its title.
