@@ -33,17 +33,26 @@ export function Hub() {
     )
   }
 
+  // The same shell the review view renders into, so both surfaces read as one
+  // application: `.app-shell` supplies the topbar row and pins the rest of the
+  // window for `.hub` to scroll inside.
   return (
-    <div className="hub">
-      <header className="hub-header">
-        <a href="#/">
-          <strong>Delta</strong>
+    <div className="app-shell">
+      <header className="topbar topbar-hub">
+        <a className="brand" href="#/">
+          <span className="brand-mark" aria-hidden="true" />
+          <span>delta</span>
         </a>
-        <nav>
+        <nav className="topbar-meta">
           <a href="#/settings">Settings</a>
         </nav>
       </header>
-      {route.name === 'settings' ? <Settings /> : <Lists />}
+
+      <main className="hub">
+        <div className="hub-column">
+          {route.name === 'settings' ? <Settings /> : <Lists />}
+        </div>
+      </main>
     </div>
   )
 }

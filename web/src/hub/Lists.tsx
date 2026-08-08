@@ -216,7 +216,7 @@ function Group({
           {collapsed ? '▸' : '▾'}
         </span>
         <span className="hub-group-name">{group.repository}</span>
-        <span className="hub-group-count">{count}</span>
+        <span className="thread-count">{count}</span>
       </button>
       {collapsed ? null : (
         <ul className="hub-list">
@@ -245,7 +245,7 @@ function Section({
   const groups = groupByRepository(page.items)
   return (
     <section className="hub-section">
-      <h3>{title}</h3>
+      <h3 className="eyebrow">{title}</h3>
       {groups.length === 0 ? (
         <p className="hub-empty">Nothing here.</p>
       ) : (
@@ -286,7 +286,7 @@ function OpenByUrl({ hosts }: { hosts: HostConfig[] }) {
 
   return (
     <section className="hub-section">
-      <h3>Open by URL</h3>
+      <h3 className="eyebrow">Open by URL</h3>
       <div className="hub-open">
         <input
           type="url"
@@ -353,15 +353,13 @@ export function Lists() {
   }
   if (!hosts.data?.length) {
     return (
-      <div className="hub-setup">
-        <h2>Add a GitLab host to get started</h2>
+      <div className="state-screen">
+        <h1>Add a GitLab host to get started</h1>
         <p>
           Delta needs a personal access token with the <code>api</code> scope
           for each GitLab instance you review on.
         </p>
-        <a className="hub-cta" href="#/settings">
-          Open settings
-        </a>
+        <a href="#/settings">Open settings</a>
       </div>
     )
   }

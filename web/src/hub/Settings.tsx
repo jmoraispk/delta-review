@@ -142,12 +142,12 @@ export function Settings() {
         ))}
       </ul>
 
-      <h3>Add a host</h3>
+      <h3 className="eyebrow">Add a host</h3>
       <p className="hub-note">
         Create a personal access token with the <code>api</code> scope. Give it
         an expiry date — Delta stores it in extension storage on this machine.
       </p>
-      <label>
+      <label className="eyebrow">
         Hostname
         <input
           type="text"
@@ -156,7 +156,7 @@ export function Settings() {
           onChange={(event) => setHost(event.target.value)}
         />
       </label>
-      <label>
+      <label className="eyebrow">
         Personal access token
         <input
           type="password"
@@ -165,6 +165,7 @@ export function Settings() {
         />
       </label>
       <button
+        className="primary-action"
         type="button"
         disabled={add.isPending}
         onClick={() => add.mutate()}

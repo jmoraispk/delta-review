@@ -257,6 +257,16 @@ a:focus-visible {
   font-size: 11px;
 }
 
+/* Only the hub puts a link in here; the review view's meta slot is text. */
+.topbar-meta a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.topbar-meta a:hover {
+  color: var(--delta);
+}
+
 .connection-dot,
 .language-dot {
   display: inline-block;
@@ -349,6 +359,22 @@ a:focus-visible {
   padding: 8px;
 }
 
+/*
+ * The list row: a borderless strip that only shows itself under the pointer.
+ * The file rail, the hub's merge request and host lists and the hub's
+ * repository toggle are all the same idiom, so they share one definition and
+ * differ only in the layout each puts inside it.
+ */
+.file-row,
+.hub-row,
+.hub .hub-group-toggle {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
 .file-row {
   position: relative;
   display: grid;
@@ -358,12 +384,7 @@ a:focus-visible {
   align-items: center;
   gap: 7px;
   padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
   cursor: pointer;
-  text-align: left;
 }
 
 .file-row-meta {
@@ -372,7 +393,9 @@ a:focus-visible {
   gap: 7px;
 }
 
-.file-row:hover {
+.file-row:hover,
+.hub-row:hover,
+.hub .hub-group-toggle:hover {
   background: rgba(255, 255, 255, 0.025);
   color: var(--ink);
 }
@@ -399,7 +422,8 @@ a:focus-visible {
   font-size: 8px;
 }
 
-.file-path {
+.file-path,
+.hub-group-name {
   overflow: hidden;
   font-family: var(--mono);
   font-size: 11px;
@@ -480,7 +504,9 @@ a:focus-visible {
   opacity: 0.45;
 }
 
-.update-status {
+.update-status,
+.hub-row-meta,
+.hub-detail {
   color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
@@ -737,13 +763,21 @@ a:focus-visible {
   margin: 0;
 }
 
-.state-screen button {
+/* The hub's setup card offers a link where the review view offers a button. */
+.state-screen button,
+.state-screen a {
   margin-top: 20px;
   padding: 8px 14px;
   border: 1px solid var(--hairline-bright);
   border-radius: 5px;
   background: var(--panel-raised);
   cursor: pointer;
+}
+
+.state-screen a {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
 }
 
 .state-mark {
@@ -791,7 +825,12 @@ a:focus-visible {
     padding: 0 13px;
   }
 
-  .topbar-meta {
+  /*
+   * The review view drops the host label to make room for the repository and
+   * merge request number. The hub's meta slot holds its only navigation, so it
+   * stays.
+   */
+  .topbar:not(.topbar-hub) .topbar-meta {
     display: none;
   }
 
@@ -872,7 +911,8 @@ a:focus-visible {
   background: rgba(255, 255, 255, 0.015);
 }
 
-.thread-author {
+.thread-author,
+.hub-row strong {
   color: var(--ink);
   font-weight: 650;
 }
@@ -991,7 +1031,8 @@ a:focus-visible {
   padding-left: 22px;
 }
 
-.note-markdown a {
+.note-markdown a,
+.hub-error a {
   color: var(--delta);
 }
 
@@ -1066,10 +1107,10 @@ a:focus-visible {
   clip: rect(0 0 0 0);
 }
 
+/* The text field: the review view's two textareas and every hub input. */
 .reply-form textarea,
-.comment-composer textarea {
-  width: 100%;
-  resize: vertical;
+.comment-composer textarea,
+.hub input {
   border: 1px solid var(--hairline);
   border-radius: 5px;
   outline: 0;
@@ -1078,13 +1119,24 @@ a:focus-visible {
   font: 12px/1.5 var(--sans);
 }
 
-.reply-form textarea {
-  min-height: 48px;
+.reply-form textarea,
+.comment-composer textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.reply-form textarea,
+.hub input {
   padding: 7px 9px;
 }
 
+.reply-form textarea {
+  min-height: 48px;
+}
+
 .reply-form textarea:focus,
-.comment-composer textarea:focus {
+.comment-composer textarea:focus,
+.hub input:focus {
   border-color: rgba(64, 214, 178, 0.55);
   box-shadow: 0 0 0 2px rgba(64, 214, 178, 0.08);
 }
@@ -1097,9 +1149,11 @@ a:focus-visible {
   gap: 7px;
 }
 
+/* The control: the review view's thread and composer buttons, and the hub's. */
 .thread-actions button,
 .composer-heading button,
-.composer-footer button {
+.composer-footer button,
+.hub button {
   padding: 5px 9px;
   border: 1px solid var(--hairline-bright);
   border-radius: 4px;
@@ -1117,7 +1171,8 @@ button.primary-action {
 }
 
 .thread-actions button:disabled,
-.composer-footer button:disabled {
+.composer-footer button:disabled,
+.hub button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -1167,15 +1222,13 @@ button.primary-action {
   font-size: 10px;
 }
 
-.mutation-error {
+.mutation-error,
+.hub-error {
   margin: 0;
   padding: 7px 9px;
   border-radius: 4px;
-  font-size: 11px;
-}
-
-.mutation-error {
   color: var(--danger);
+  font-size: 11px;
 }
 
 .error-code {
@@ -1390,7 +1443,8 @@ button.primary-action {
   font-size: 18px;
 }
 
-.diff-explanation h2 {
+.diff-explanation h2,
+.hub h2 {
   margin: 14px 0 5px;
   color: var(--ink);
   font-family: var(--display);
@@ -1419,6 +1473,14 @@ button.primary-action {
 /*
  * The hub.
  *
+ * There is no second design system here. The hub renders inside the review
+ * view's `.app-shell` and `.topbar`, and its rows, controls, fields, counts,
+ * eyebrows, errors and setup screen are the review view's own rules, joined
+ * where they are defined rather than restated here. What is left below is the
+ * layout the review view has no counterpart for: the reading column, the
+ * repository group toggle, and the two element overrides the legacy palette
+ * forces.
+ *
  * Colours come from the dark palette in the second `:root` block above — the
  * one the review view uses. This file also carries a legacy light-first set
  * (`--text`, `--text-h`, `--bg`, `--border`, `--code-bg`, `--accent*`) that
@@ -1427,63 +1489,53 @@ button.primary-action {
  * onto a near-black canvas whenever the OS is in light mode. Nothing below may
  * reference those names, and the `h2`/`code` overrides exist because the
  * legacy element rules near the top of this file do.
- *
- * `height`/`overflow-y` are not decoration either: the review app pins the
- * viewport with `body { overflow: hidden }` so its diff panes scroll on their
- * own, which would otherwise clip a merge request list taller than the window
- * with no way to scroll to the rest.
+ */
+
+/*
+ * Scrolling and centring are two jobs, and they have to sit on two elements.
+ * `body { overflow: hidden }` pins the viewport so the review view's panes can
+ * scroll on their own, so something inside the shell must own the scroll or a
+ * merge request list taller than the window would be unreachable. Giving that
+ * job to the centred column itself — as this file once did — puts the
+ * scrollbar at the column's own edge, mid-screen, and narrows the column's
+ * content box the moment it appears, so collapsing the last open group slides
+ * the whole page sideways. `.hub` scrolls at the full width of the shell
+ * instead, which puts the scrollbar at the window edge, and
+ * `scrollbar-gutter: stable` reserves that track whether or not it is in use,
+ * so the column's containing block is one constant width and cannot move.
  */
 .hub {
-  box-sizing: border-box;
-  height: 100vh;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden auto;
+  scrollbar-gutter: stable;
+}
+
+.hub-column {
   max-width: 60rem;
   margin: 0 auto;
   padding: 24px;
-  color: var(--ink);
 }
 
-.hub-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--hairline);
+/*
+ * The review view's topbar sizes three slots: brand, repository context, host.
+ * The hub has two, and no fixed rail to line the brand up with, so the brand
+ * hugs its label and the navigation takes the rest of the row.
+ */
+.topbar.topbar-hub {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
-.hub-header a {
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.hub-header a:hover {
-  color: var(--delta);
-}
-
-.hub-header strong {
-  color: var(--ink);
-  font-family: var(--display);
-  font-size: 16px;
-  letter-spacing: -0.02em;
+.topbar-hub nav {
+  justify-content: flex-end;
 }
 
 .hub h2 {
   margin: 28px 0 0;
-  color: var(--ink);
-  font-family: var(--display);
-  font-size: 18px;
-  font-weight: 640;
-  letter-spacing: -0.02em;
 }
 
+/* The section titles are `.eyebrow`; only their spacing is the hub's. */
 .hub h3 {
   margin: 0 0 8px;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 .hub code {
@@ -1492,6 +1544,16 @@ button.primary-action {
   background: var(--panel-soft);
   color: var(--ink);
   font: 11px/1.4 var(--mono);
+}
+
+/*
+ * The setup card is the review view's `.state-screen`, but it renders inside
+ * the shell rather than in place of it, so it drops the full-window height
+ * that rule assumes.
+ */
+.hub .state-screen {
+  min-height: 0;
+  margin-top: 15vh;
 }
 
 .hub-section {
@@ -1505,11 +1567,11 @@ button.primary-action {
 }
 
 /*
- * A repository group inside a section. The toggle rules are written as
- * `.hub .hub-group-toggle` rather than `.hub-group-toggle` on purpose: the
- * generic `.hub button` further down gives every button in the hub a border, a
- * panel background and 10px mono, and a single class would lose to it on
- * specificity no matter where it sat in this file.
+ * A repository group inside a section — the one thing the review view does not
+ * do. The toggle is written as `.hub .hub-group-toggle` rather than
+ * `.hub-group-toggle` on purpose: it is a `<button>`, so it picks up the
+ * shared control rule, and a single class would lose to it on specificity no
+ * matter where it sat in this file.
  */
 .hub-group + .hub-group {
   margin-top: 12px;
@@ -1517,19 +1579,10 @@ button.primary-action {
 
 .hub .hub-group-toggle {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 5px 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--muted);
-  text-align: left;
-}
-
-.hub .hub-group-toggle:hover .hub-group-name {
-  color: var(--delta);
+  padding: 5px 8px;
 }
 
 .hub .hub-group-toggle:focus-visible {
@@ -1546,24 +1599,7 @@ button.primary-action {
 
 .hub-group-name {
   flex: 1;
-  overflow: hidden;
   color: var(--ink);
-  font-family: var(--mono);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hub-group-count {
-  flex: none;
-  min-width: 18px;
-  padding: 1px 6px;
-  border-radius: 9px;
-  background: var(--panel-soft);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
-  text-align: center;
 }
 
 .hub-row {
@@ -1571,31 +1607,15 @@ button.primary-action {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--hairline);
+  padding: 8px;
 }
 
 .hub-row a {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  color: var(--ink);
+  color: inherit;
   text-decoration: none;
-}
-
-.hub-row a:hover strong {
-  color: var(--delta);
-}
-
-.hub-row strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.hub-row-meta {
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
 }
 
 .hub-empty,
@@ -1609,51 +1629,14 @@ button.primary-action {
   display: block;
   margin-top: 5px;
   overflow-wrap: anywhere;
-  color: var(--muted);
-  font: 10px/1.5 var(--mono);
+  line-height: 1.5;
 }
 
+/* A boxed alert rather than the inline `.mutation-error` it is otherwise. */
 .hub-error {
   margin: 10px 0 0;
-  padding: 9px 11px;
   border: 1px solid rgba(255, 123, 114, 0.32);
-  border-radius: 6px;
   background: var(--panel);
-  color: var(--danger);
-  font-size: 12px;
-}
-
-.hub-error a {
-  color: var(--delta);
-}
-
-.hub-setup {
-  max-width: 30rem;
-  margin: 15vh auto 0;
-  text-align: center;
-}
-
-.hub-setup p {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.hub-cta {
-  display: inline-block;
-  margin-top: 18px;
-  padding: 8px 16px;
-  border: 1px solid rgba(64, 214, 178, 0.35);
-  border-radius: 6px;
-  background: var(--delta-soft);
-  color: var(--delta);
-  font-family: var(--mono);
-  font-size: 11px;
-  text-decoration: none;
-}
-
-.hub-cta:hover {
-  background: rgba(64, 214, 178, 0.2);
 }
 
 .hub-open {
@@ -1665,15 +1648,13 @@ button.primary-action {
   flex: 1;
 }
 
+.hub input::placeholder {
+  color: var(--faint);
+}
+
 .hub-settings label {
   display: block;
   margin-top: 14px;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 .hub-settings input {
@@ -1682,49 +1663,6 @@ button.primary-action {
   margin-top: 6px;
 }
 
-.hub input {
-  padding: 7px 9px;
-  border: 1px solid var(--hairline);
-  border-radius: 5px;
-  outline: 0;
-  background: var(--canvas);
-  color: var(--ink);
-  font: 12px/1.5 var(--sans);
-}
-
-.hub input::placeholder {
-  color: var(--faint);
-}
-
-.hub input:focus {
-  border-color: rgba(64, 214, 178, 0.55);
-  box-shadow: 0 0 0 2px rgba(64, 214, 178, 0.08);
-}
-
-.hub button {
-  flex: none;
-  padding: 6px 10px;
-  border: 1px solid var(--hairline-bright);
-  border-radius: 5px;
-  background: var(--panel-soft);
-  color: var(--muted);
-  cursor: pointer;
-  font-family: var(--mono);
-  font-size: 10px;
-}
-
-.hub button:hover {
-  color: var(--ink);
-}
-
-.hub button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.hub-settings > button {
+.hub-settings > .primary-action {
   margin-top: 18px;
-  border-color: rgba(64, 214, 178, 0.35);
-  background: var(--delta-soft);
-  color: var(--delta);
 }
