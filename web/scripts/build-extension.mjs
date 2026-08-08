@@ -48,6 +48,35 @@ async function main() {
   const watch = process.argv.includes('--watch') ? {} : null
   rmSync(resolve(root, 'dist-extension'), { recursive: true, force: true })
 
+  // Watch mode packages once both bundles have landed, then again after every
+  // rebuild. Each watcher is subscribed the instant `build()` hands it over:
+  // vite returns the watcher without awaiting its first bundle and the emitter
+  // has no event replay, so anything attached after a later `await` can miss
+  // the first END outright and leave dist-extension empty with no error.
+  const landed = new Set()
+  function packageOnceBothLand(name, watcher) {
+    watcher.on('event', (event) => {
+      if (event.code === 'ERROR') {
+        console.error(event.error)
+        return
+      }
+      if (event.code !== 'END') return
+      landed.add(name)
+      if (landed.size < 2) return
+      // Both bundles share dist-extension/build, so one watcher can be writing
+      // while we copy — on Windows that surfaces as EBUSY/EPERM/ENOENT. The
+      // emitter awaits this handler and drops no rejection, so an escaping
+      // throw would end the whole watch session. Contain it and retry on the
+      // next rebuild instead.
+      try {
+        packageTargets()
+        console.log('Packaged dist-extension/chrome and dist-extension/firefox')
+      } catch (error) {
+        console.error('Packaging failed, retrying on the next rebuild:', error)
+      }
+    })
+  }
+
   // 1. Pages, code-split as usual. Watch rebuilds must not empty the shared
   // build dir, or they would delete the background bundle sitting beside them.
   const pages = await build({
@@ -55,6 +84,7 @@ async function main() {
     define,
     build: watch ? { watch, emptyOutDir: false } : {},
   })
+  if (watch) packageOnceBothLand('pages', pages)
 
   // 2. Background, as one self-contained IIFE so both browsers can load it.
   const background = await build({
@@ -73,34 +103,12 @@ async function main() {
       },
     },
   })
+  if (watch) packageOnceBothLand('background', background)
 
   if (!watch) {
     packageTargets()
     rmSync(buildDir, { recursive: true, force: true })
     console.log('Built dist-extension/chrome and dist-extension/firefox')
-    return
-  }
-
-  // Watch mode: `build()` resolves as soon as the watcher starts, before any
-  // bundle has landed, so packaging has to wait for both to emit their first
-  // END and then run again after every rebuild. The build dir stays put — the
-  // watchers keep writing into it for the life of the process.
-  const landed = new Set()
-  for (const [name, watcher] of [
-    ['pages', pages],
-    ['background', background],
-  ]) {
-    watcher.on('event', (event) => {
-      if (event.code === 'ERROR') {
-        console.error(event.error)
-        return
-      }
-      if (event.code !== 'END') return
-      landed.add(name)
-      if (landed.size < 2) return
-      packageTargets()
-      console.log('Packaged dist-extension/chrome and dist-extension/firefox')
-    })
   }
 }
 
