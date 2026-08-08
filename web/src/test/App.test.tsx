@@ -16,7 +16,12 @@ test('renders merge request identity and files', async () => {
   render(<App />, { wrapper: TestProviders })
 
   expect(await screen.findByText('Improve parser errors')).toBeVisible()
-  expect((await screen.findAllByText('src/parser.py'))[0]).toBeVisible()
+  // The diff stream is a lazy chunk, which can take a moment under load.
+  expect(
+    (await screen.findAllByText('src/parser.py', undefined, {
+      timeout: 5_000,
+    }))[0],
+  ).toBeVisible()
   expect(screen.getByText('gitlab.example.com')).toBeVisible()
   expect(
     screen.getByLabelText('Total changes: 1 addition, 1 deletion'),
@@ -134,7 +139,7 @@ test('updates all review data and retains the active file after reordering', asy
     ),
   ).toBeVisible()
   fireEvent.keyDown(
-    screen.getByRole('button', { name: /src\/parser.py/ }),
+    screen.getByRole('button', { name: /^parser\.py/ }),
     { key: 'ArrowDown' },
   )
   expect(
@@ -270,7 +275,7 @@ test('clears the Update status when selecting another file', async () => {
   expect(await screen.findByText('Review updated.')).toBeVisible()
 
   fireEvent.keyDown(
-    screen.getByRole('button', { name: /src\/parser.py/ }),
+    screen.getByRole('button', { name: /^parser\.py/ }),
     { key: 'ArrowDown' },
   )
   await screen.findByRole('region', { name: 'src/other.py' })

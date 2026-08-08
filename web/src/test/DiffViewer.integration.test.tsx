@@ -9,6 +9,7 @@ import { expect, test } from 'vitest'
 
 import type { DiffFile } from '../api/types'
 import { DiffViewer } from '../review/DiffViewer'
+import { resetDiffWorker } from '../review/diffWorkerClient'
 import { TestProviders } from './fixtures'
 
 const file: DiffFile = {
@@ -64,23 +65,26 @@ test('reconstructs worker-processed bundles in the real renderer', async () => {
 
   class WorkerStub {
     onmessage:
-      | ((event: MessageEvent<{ bundle: unknown }>) => void)
+      | ((event: MessageEvent<{ id: number; bundle: unknown }>) => void)
       | null = null
     onerror: (() => void) | null = null
+    onmessageerror: (() => void) | null = null
 
     postMessage(request: {
+      id: number
       data: Parameters<typeof CoreDiffFile.createInstance>[0]
       theme: 'light' | 'dark'
+      mode: 'unified' | 'split'
     }) {
       const parsed = CoreDiffFile.createInstance(request.data)
       parsed.initTheme(request.theme)
       parsed.initRaw()
-      parsed.buildSplitDiffLines()
-      parsed.buildUnifiedDiffLines()
+      if (request.mode === 'split') parsed.buildSplitDiffLines()
+      else parsed.buildUnifiedDiffLines()
       const bundle = structuredClone(parsed._getFullBundle())
       queueMicrotask(() => {
         this.onmessage?.(
-          new MessageEvent('message', { data: { bundle } }),
+          new MessageEvent('message', { data: { id: request.id, bundle } }),
         )
       })
     }
@@ -95,6 +99,7 @@ test('reconstructs worker-processed bundles in the real renderer', async () => {
   })
 
   try {
+    resetDiffWorker()
     render(<DiffViewer file={file} />, { wrapper: TestProviders })
     await waitFor(() => {
       const content = Array.from(

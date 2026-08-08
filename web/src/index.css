@@ -232,10 +232,21 @@ a:focus-visible {
   font-size: 12px;
 }
 
-.repository-context > span:first-child {
+.repository-context > :first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.context-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.context-link:hover,
+.context-link:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 .repository-context strong {
@@ -284,8 +295,12 @@ a:focus-visible {
 }
 
 .file-rail {
+  display: flex;
   min-height: 0;
-  overflow: hidden auto;
+  flex-direction: column;
+  /* The list inside owns the scrolling; scrolling here too would show a
+     second scrollbar right beside it. */
+  overflow: hidden;
   border-right: 1px solid var(--hairline);
   background: rgba(17, 23, 31, 0.88);
 }
@@ -378,13 +393,118 @@ a:focus-visible {
 .file-row {
   position: relative;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
-  min-height: 36px;
+  min-height: 30px;
   align-items: center;
   gap: 7px;
-  padding: 6px 8px;
+  padding: 4px 8px;
   cursor: pointer;
+}
+
+.dir-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dir-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ink);
+}
+
+.dir-chevron {
+  display: inline-flex;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.dir-name {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-count {
+  font-family: var(--mono);
+  font-size: 9px;
+  opacity: 0.55;
+}
+
+.file-name {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-status-square {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  place-items: center;
+  border: 1px solid currentcolor;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.file-status-square.is-added {
+  color: var(--success);
+}
+
+.file-status-square.is-deleted {
+  color: var(--danger);
+}
+
+.file-status-square.is-moved,
+.file-status-square.is-modified {
+  color: var(--warning);
+}
+
+.file-status-square.is-blocked {
+  color: var(--muted);
+}
+
+.change-summary {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.change-summary .count-new {
+  color: var(--success);
+}
+
+.change-summary .count-del {
+  color: var(--danger);
+}
+
+.change-summary .count-mov {
+  color: var(--warning);
 }
 
 .file-row-meta {
@@ -451,9 +571,9 @@ a:focus-visible {
 .merge-request-heading {
   display: flex;
   min-height: 116px;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
   padding: 24px 30px 20px;
   border-bottom: 1px solid var(--hairline);
 }
@@ -463,21 +583,41 @@ a:focus-visible {
 }
 
 .merge-request-heading h1 {
+  display: -webkit-box;
   overflow: hidden;
   margin: 7px 0 0;
+  /* The clamp box rounds down to whole line boxes and would shave descenders. */
+  padding-bottom: 2px;
+  -webkit-box-orient: vertical;
   color: var(--ink);
   font-family: var(--display);
   font-size: clamp(20px, 2.2vw, 29px);
   font-weight: 660;
+  -webkit-line-clamp: 3;
   letter-spacing: -0.035em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Room for descenders on the last line, which the clamp box would clip. */
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
+/*
+ * One row under the title: the GitLab and review actions on the left, the
+ * view controls on the right, so both align to the pane's edges.
+ */
 .heading-actions {
   display: flex;
   flex: none;
+  align-items: center;
+  align-self: stretch;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.heading-actions-primary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -562,10 +702,10 @@ a:focus-visible {
 
 .review-toolbar {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin: 14px 30px -10px;
 }
 
 .view-control {
@@ -872,8 +1012,9 @@ a:focus-visible {
     margin: 12px 14px 0;
   }
 
-  .review-toolbar {
-    margin: 12px 14px -2px;
+  .heading-actions {
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .diff-stage,
@@ -1268,7 +1409,8 @@ button.primary-action {
 }
 
 .file-list-scroll {
-  height: calc(100% - 84px);
+  min-height: 0;
+  flex: 1;
   overflow: auto;
   padding: 8px;
 }
@@ -1278,10 +1420,49 @@ button.primary-action {
   padding: 0;
 }
 
-.virtual-file-list .file-row {
+.virtual-file-list .file-row,
+.virtual-file-list .dir-row {
   position: absolute;
   top: 0;
   left: 0;
+}
+
+.diff-stream {
+  width: 100%;
+  /*
+   * The virtualizer moves sections in and out and repositions the window in
+   * the same commit. Chrome's scroll anchoring reads that as content shifting
+   * above the viewport and compensates, which throws an upward scroll back
+   * down every time a new section enters from the top.
+   */
+  overflow-anchor: none;
+}
+
+.diff-stream * {
+  overflow-anchor: none;
+}
+
+.diff-stream-item .diff-stage {
+  margin: 0 0 18px;
+}
+
+/*
+ * Deliberately not sticky: a pinned header sits over the first rows of a
+ * section and swallows the hover that reveals their comment buttons.
+ */
+.diff-stream-item .diff-header {
+  background: var(--canvas);
+}
+
+.diff-file-name {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .diff-library {
@@ -1363,6 +1544,20 @@ button.primary-action {
 
 .diff-library .diff-line.delta-drag-selected .diff-line-content {
   filter: brightness(1.08);
+}
+
+/* The excerpt GitLab renders above a single-line comment. */
+.diff-library .diff-line.delta-context-preview .diff-line-num,
+.diff-library .diff-line.delta-context-preview .diff-line-old-num,
+.diff-library .diff-line.delta-context-preview .diff-line-new-num {
+  box-shadow: inset 2px 0 rgba(64, 214, 178, 0.28);
+}
+
+.diff-library .diff-line.delta-context-preview .diff-line-content {
+  background-image: linear-gradient(
+    rgba(64, 214, 178, 0.05),
+    rgba(64, 214, 178, 0.05)
+  );
 }
 
 .diff-library .diff-line.delta-discussion-range .diff-line-num,

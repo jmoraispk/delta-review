@@ -173,12 +173,12 @@ test('large review stays responsive while rendering and scrolling', async ({
   }).click()
   await expect(page.getByText('Inline review note')).toHaveCount(0)
   await page.getByRole('button', { name: 'Split' }).click()
-  await expect(page.locator('.split-diff-view')).toBeVisible()
+  await expect(page.locator('.split-diff-view').first()).toBeVisible()
   await expect(
     page.getByRole('button', { name: 'Split' }),
   ).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Unified' }).click()
-  await expect(page.locator('.unified-diff-view')).toBeVisible()
+  await expect(page.locator('.unified-diff-view').first()).toBeVisible()
   const dragStartLine = page.locator('[data-line-new-num="1"]').first()
   await dragStartLine.scrollIntoViewIfNeeded()
   await dragStartLine.hover()
@@ -223,7 +223,7 @@ test('large review stays responsive while rendering and scrolling', async ({
   await expect(rangeComposer.getByText(/line 1/)).toBeVisible()
   await rangeComposer.getByRole('button', { name: 'Cancel' }).click()
   await page.getByRole('button', { name: 'Split' }).click()
-  await expect(page.locator('.split-diff-view')).toBeVisible()
+  await expect(page.locator('.split-diff-view').first()).toBeVisible()
   const reverseStartLine = page
     .locator('.diff-line[data-side="old"] [data-line-num="3"]')
     .first()
@@ -255,7 +255,7 @@ test('large review stays responsive while rendering and scrolling', async ({
   await expect(rangeComposer.getByText(/lines 1–3/)).toBeVisible()
   await rangeComposer.getByRole('button', { name: 'Cancel' }).click()
   await page.getByRole('button', { name: 'Unified' }).click()
-  await expect(page.locator('.unified-diff-view')).toBeVisible()
+  await expect(page.locator('.unified-diff-view').first()).toBeVisible()
 
   const coldOpenMs = await page.evaluate(() => performance.now())
   await page.evaluate(() => {
@@ -313,11 +313,18 @@ test('large review stays responsive while rendering and scrolling', async ({
           return
         }
         const started = performance.now()
+        const rendered = () =>
+          document
+            .querySelector('section[aria-label="src/file-01.ts"]')
+            ?.textContent?.includes('old_1_0') ?? false
+        // In the continuous stream a neighbouring file is often already
+        // rendered, so the switch costs nothing and no mutation follows.
+        if (rendered()) {
+          resolve(0)
+          return
+        }
         const observer = new MutationObserver(() => {
-          const stage = document.querySelector(
-            'section[aria-label="src/file-01.ts"]',
-          )
-          if (!stage?.textContent?.includes('old_1_0')) return
+          if (!rendered()) return
           observer.disconnect()
           requestAnimationFrame(() =>
             resolve(performance.now() - started),
@@ -389,6 +396,13 @@ test('large review stays responsive while rendering and scrolling', async ({
     { cachedSwitchMs, coldOpenMs },
   )
 
+  // Back to the top of the stream: away from it the first widget in the DOM
+  // belongs to an overscanned section above the viewport, which cannot be
+  // hovered and moves as the virtual window shifts.
+  await page.locator('.review-main').evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await expect(page.locator('.diff-stream-item').first()).toBeVisible()
   const addComment = page.locator('.diff-add-widget').first()
   const commentRow = addComment.locator('xpath=ancestor::tr')
   await commentRow.scrollIntoViewIfNeeded()
@@ -417,9 +431,8 @@ test('large review stays responsive while rendering and scrolling', async ({
   expect(metrics.cachedSwitchMs).toBeLessThan(100)
   expect(metrics.reviewScrollTop).toBeGreaterThan(0)
   expect(metrics.scrollLongTasksOver100Ms).toBe(0)
-  expect(metrics.firstHighlighter).toBe('')
+  // Syntax tokens now come back from the worker with the diff, so the first
+  // paint is already highlighted instead of arriving plain and upgrading.
+  expect(metrics.firstHighlighter).toBe('lowlight')
   expect(metrics.highlightMs).not.toBeNull()
-  expect(metrics.highlightMs).toBeGreaterThanOrEqual(
-    metrics.firstDiffMs ?? Number.POSITIVE_INFINITY,
-  )
 })

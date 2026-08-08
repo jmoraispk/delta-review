@@ -4,15 +4,19 @@ import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { ErrorState } from './review/ErrorState'
 import { FileTree } from './review/FileTree'
 import { diffStats, diffStatsLabel } from './review/diffStats'
+import { projectUrlFrom } from './review/projectUrl'
+import type { ScrollRequest } from './review/DiffStream'
+import { MODE_KEY, ReviewToolbar } from './review/ReviewToolbar'
+import type { DiffMode } from './review/diffWorkerClient'
 import {
   discussionsQueryKey,
   mergeFetchedDiscussions,
 } from './review/discussionCache'
 import { useTransport } from './transport/context'
 
-const DiffViewer = lazy(() =>
-  import('./review/DiffViewer').then((module) => ({
-    default: module.DiffViewer,
+const DiffStream = lazy(() =>
+  import('./review/DiffStream').then((module) => ({
+    default: module.DiffStream,
   })),
 )
 const GeneralDiscussionsPanel = lazy(() =>
@@ -27,6 +31,16 @@ export function App() {
   const queryClient = useQueryClient()
   const transport = useTransport()
   const [requestedFileIndex, setRequestedFileIndex] = useState(0)
+  const [scrollRequest, setScrollRequest] = useState<ScrollRequest | null>(
+    null,
+  )
+  const scrollNonce = useRef(0)
+  // The review controls live in the header, so their state lives here.
+  const [mode, setMode] = useState<DiffMode>(() =>
+    localStorage.getItem(MODE_KEY) === 'split' ? 'split' : 'unified',
+  )
+  const [showComments, setShowComments] = useState(false)
+  const [inlineCount, setInlineCount] = useState(0)
   const [showGeneralDiscussions, setShowGeneralDiscussions] =
     useState(false)
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
@@ -75,6 +89,15 @@ export function App() {
       ),
     [diffs.data],
   )
+  const changeSummary = useMemo(() => {
+    const counts = { added: 0, deleted: 0, moved: 0 }
+    for (const file of diffs.data ?? []) {
+      if (file.new_file) counts.added += 1
+      else if (file.deleted_file) counts.deleted += 1
+      else if (file.renamed_file) counts.moved += 1
+    }
+    return counts
+  }, [diffs.data])
   const generalDiscussions = useMemo(
     () =>
       (discussions.data ?? []).filter((discussion) =>
@@ -117,6 +140,7 @@ export function App() {
   )
   const activeFile = diffs.data[activeFileIndex]
   const threadCount = discussions.data?.length ?? 0
+  const projectUrl = projectUrlFrom(mergeRequest.data.web_url)
 
   async function updateReview() {
     const activeFilePath = activeFile?.new_path ?? activeFile?.old_path
@@ -161,11 +185,29 @@ export function App() {
           <span>delta</span>
         </a>
         <div className="repository-context">
-          <span>{config.data.project}</span>
+          {projectUrl ? (
+            <a
+              className="context-link"
+              href={projectUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {config.data.project}
+            </a>
+          ) : (
+            <span>{config.data.project}</span>
+          )}
           <span className="separator" aria-hidden="true">
             /
           </span>
-          <strong>!{mergeRequest.data.iid}</strong>
+          <a
+            className="context-link"
+            href={mergeRequest.data.web_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <strong>!{mergeRequest.data.iid}</strong>
+          </a>
         </div>
         <div className="topbar-meta">
           <span className="connection-dot" aria-hidden="true" />
@@ -190,6 +232,24 @@ export function App() {
                   −{totalChanges.deletions}
                 </span>
               </span>
+              <span
+                className="change-summary"
+                aria-label={
+                  `${changeSummary.added} new, ` +
+                  `${changeSummary.deleted} deleted, ` +
+                  `${changeSummary.moved} moved`
+                }
+              >
+                <span className="count-new" aria-hidden="true">
+                  {changeSummary.added} new
+                </span>
+                <span className="count-del" aria-hidden="true">
+                  {changeSummary.deleted} del
+                </span>
+                <span className="count-mov" aria-hidden="true">
+                  {changeSummary.moved} mov
+                </span>
+              </span>
             </div>
             <span className="thread-count" title="Discussion count">
               {threadCount}
@@ -201,6 +261,8 @@ export function App() {
             onSelect={(index) => {
               if (index !== activeFileIndex) setUpdateState('idle')
               setRequestedFileIndex(index)
+              scrollNonce.current += 1
+              setScrollRequest({ index, nonce: scrollNonce.current })
             }}
             onFocusDiff={() => diffFocusRef.current?.focus()}
           />
@@ -217,6 +279,7 @@ export function App() {
               <h1>{mergeRequest.data.title}</h1>
             </div>
             <div className="heading-actions">
+              <div className="heading-actions-primary">
               <a
                 className="gitlab-link"
                 href={mergeRequest.data.web_url}
@@ -265,6 +328,16 @@ export function App() {
                   Review could not be fully updated.
                 </span>
               ) : null}
+              </div>
+              <ReviewToolbar
+                inlineCount={inlineCount}
+                mode={mode}
+                showComments={showComments}
+                onModeChange={setMode}
+                onToggleComments={() =>
+                  setShowComments((visible) => !visible)
+                }
+              />
             </div>
           </section>
 
@@ -291,10 +364,17 @@ export function App() {
                 </section>
               }
             >
-              <DiffViewer
-                key={`${activeFile.old_path}:${activeFile.new_path}`}
-                file={activeFile}
+              <DiffStream
+                activeIndex={activeFileIndex}
                 discussions={discussions.data ?? []}
+                files={diffs.data}
+                mode={mode}
+                scrollRef={diffFocusRef}
+                scrollRequest={scrollRequest}
+                showComments={showComments}
+                onActiveIndexChange={setRequestedFileIndex}
+                onInlineCountChange={setInlineCount}
+                onRequestShowComments={() => setShowComments(true)}
               />
             </Suspense>
           ) : (
