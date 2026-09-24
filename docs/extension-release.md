@@ -255,6 +255,35 @@ then load `web/dist-extension/chrome` and `web/dist-extension/firefox` and
 work through checks 1–19 of `docs/extension-smoke.md`. Checks 20–22 need a
 published release and run after step 8.
 
+### Confirm the development-only button did not ship
+
+The hub carries a "Reload extension" button in development builds only
+(`web/src/extension/devReload.tsx`). Against the release build just made, grep
+the bundle for its label:
+
+```console
+grep -rl "Reload extension" --include='*.js' web/dist-extension/chrome
+```
+
+Nothing may match — `grep` exits 1 and prints no path.
+
+That check is worth nothing unless it can fail, so prove it can. Build the
+development variant and run the same grep; it must name the hub bundle:
+
+```console
+npm run build:extension --prefix web -- --dev
+grep -rl "Reload extension" --include='*.js' web/dist-extension/chrome
+```
+
+Then rebuild without `--dev`, so the folder you smoke-test and the folder you
+just proved clean are the same one.
+
+**Do not grep for `__DELTA_DEV__` instead.** Vite's `define` substitutes that
+identifier textually, in the development build as much as the release one, so
+it is absent from both and the grep reports success even if the entire button
+shipped. The button's own label is the only string that tells the two builds
+apart.
+
 `workflow_dispatch` runs the whole job except signing and the release, so it
 is a usable dry run — as long as `CRX_PRIVATE_KEY` already exists, since the
 CRX pack step is not gated on a tag.
@@ -310,7 +339,8 @@ end to end.
 Steps 1–6 are one-time. After that:
 
 1. Bump `version` in `web/src/extension/manifest.base.json`.
-2. Build and run smoke checks 1–19 on the unpacked build.
+2. Build, grep the release build for "Reload extension" (step 7), and run
+   smoke checks 1–19 on the unpacked build.
 3. Commit, push, tag `v<version>`, push the tag.
 4. Confirm the five assets resolve and both update manifests advertise the
    new version (step 8).

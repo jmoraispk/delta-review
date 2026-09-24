@@ -125,6 +125,23 @@ Firefox: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on →
 `web/dist-extension/firefox/manifest.json`. Press Reload after each rebuild.
 Firefox drops temporary add-ons when it restarts.
 
+While actually working on the extension, run the watch build instead:
+
+```console
+npm run dev:extension --prefix web
+```
+
+That rebuilds both targets on every save, and it puts a "Reload extension"
+button in the hub header, which reloads the unpacked extension from disk
+without the trip to `chrome://extensions`. Load unpacked once as above and the
+loop becomes save, click, look. Reloading tears down every page the extension
+owns, the hub included, so reopen it from the toolbar icon if the tab closes or
+stops responding.
+
+The button exists only in development builds — it is compiled out of everything
+`npm run build:extension` produces. On a packaged or released install it is not
+there, and the manual Reload above is still the way.
+
 Chrome and Edge derive an unpacked extension's ID from the folder it was loaded
 from, so moving or deleting that folder breaks it — that is what "file not
 found" on `edge://extensions` means. Loading it again from a different path

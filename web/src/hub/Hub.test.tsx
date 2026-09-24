@@ -41,6 +41,9 @@ function renderHub() {
 }
 
 beforeEach(() => {
+  // What a release build sees, restored per test so the one development-build
+  // test below cannot leak its flag into the others.
+  vi.stubGlobal('__DELTA_DEV__', false)
   window.location.hash = ''
   hosts = []
   summaries = []
@@ -56,6 +59,29 @@ const ONE_HOST = [
 test('with no hosts it shows the setup card, not empty lists', async () => {
   renderHub()
   expect(await screen.findByText(/Add a GitLab host/i)).toBeInTheDocument()
+})
+
+test('a development build carries the reload button in the header', async () => {
+  vi.stubGlobal('__DELTA_DEV__', true)
+  const view = renderHub()
+  await screen.findByText(/Add a GitLab host/i)
+
+  const meta = view.container.querySelector('.topbar-meta')
+  if (!meta) throw new Error('The header rendered no meta slot')
+  const reload = within(meta as HTMLElement).getByRole('button', {
+    name: /reload extension/i,
+  })
+  // It leads the meta slot, ahead of the Settings link.
+  expect(reload.nextElementSibling).toHaveTextContent('Settings')
+})
+
+test('a release build leaves the header alone', async () => {
+  renderHub()
+  await screen.findByText(/Add a GitLab host/i)
+
+  expect(
+    screen.queryByRole('button', { name: /reload extension/i }),
+  ).toBeNull()
 })
 
 test('a failed host load says so instead of claiming there are no hosts', async () => {

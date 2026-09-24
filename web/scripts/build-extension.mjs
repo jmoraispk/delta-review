@@ -1,6 +1,6 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { build } from 'vite'
 
@@ -12,34 +12,24 @@ const buildDir = resolve(root, 'dist-extension/build')
 const iconDir = resolve(root, '../assets/icons')
 const targets = ['chrome', 'firefox']
 
+/**
+ * Vite's `define` substitutes text, so these values are the *source* `'true'`
+ * and `'false'`, not booleans. A release build compiles the dev branch to
+ * `if (false)`, which vite then drops — the guarantee is that the reload path
+ * is absent from the bundle, not merely unreachable in it.
+ */
+export function devDefine(argv) {
+  return { __DELTA_DEV__: argv.includes('--dev') ? 'true' : 'false' }
+}
+
 function readManifest(name) {
   return JSON.parse(
     readFileSync(resolve(root, `src/extension/${name}.json`), 'utf-8'),
   )
 }
 
-async function main() {
-  rmSync(resolve(root, 'dist-extension'), { recursive: true, force: true })
-
-  // 1. Pages, code-split as usual.
-  await build({ configFile: resolve(root, 'vite.extension.config.ts') })
-
-  // 2. Background, as one self-contained IIFE so both browsers can load it.
-  await build({
-    configFile: false,
-    root,
-    build: {
-      outDir: 'dist-extension/build',
-      emptyOutDir: false,
-      lib: {
-        entry: resolve(root, 'src/extension/background.ts'),
-        formats: ['iife'],
-        name: 'DeltaBackground',
-        fileName: () => 'background.js',
-      },
-    },
-  })
-
+/** Copy the freshly built bundle into each browser's target dir. */
+function packageTargets() {
   const base = readManifest('manifest.base')
   for (const target of targets) {
     const out = resolve(root, `dist-extension/${target}`)
@@ -51,8 +41,80 @@ async function main() {
       `${JSON.stringify({ ...base, ...readManifest(`manifest.${target}`) }, null, 2)}\n`,
     )
   }
-  rmSync(buildDir, { recursive: true, force: true })
-  console.log('Built dist-extension/chrome and dist-extension/firefox')
 }
 
-await main()
+async function main() {
+  const define = devDefine(process.argv.slice(2))
+  const watch = process.argv.includes('--watch') ? {} : null
+  rmSync(resolve(root, 'dist-extension'), { recursive: true, force: true })
+
+  // Watch mode packages once both bundles have landed, then again after every
+  // rebuild. Each watcher is subscribed the instant `build()` hands it over:
+  // vite returns the watcher without awaiting its first bundle and the emitter
+  // has no event replay, so anything attached after a later `await` can miss
+  // the first END outright and leave dist-extension empty with no error.
+  const landed = new Set()
+  function packageOnceBothLand(name, watcher) {
+    watcher.on('event', (event) => {
+      if (event.code === 'ERROR') {
+        console.error(event.error)
+        return
+      }
+      if (event.code !== 'END') return
+      landed.add(name)
+      if (landed.size < 2) return
+      // Both bundles share dist-extension/build, so one watcher can be writing
+      // while we copy — on Windows that surfaces as EBUSY/EPERM/ENOENT. The
+      // emitter awaits this handler and drops no rejection, so an escaping
+      // throw would end the whole watch session. Contain it and retry on the
+      // next rebuild instead.
+      try {
+        packageTargets()
+        console.log('Packaged dist-extension/chrome and dist-extension/firefox')
+      } catch (error) {
+        console.error('Packaging failed, retrying on the next rebuild:', error)
+      }
+    })
+  }
+
+  // 1. Pages, code-split as usual. Watch rebuilds must not empty the shared
+  // build dir, or they would delete the background bundle sitting beside them.
+  const pages = await build({
+    configFile: resolve(root, 'vite.extension.config.ts'),
+    define,
+    build: watch ? { watch, emptyOutDir: false } : {},
+  })
+  if (watch) packageOnceBothLand('pages', pages)
+
+  // 2. Background, as one self-contained IIFE so both browsers can load it.
+  const background = await build({
+    configFile: false,
+    root,
+    define,
+    build: {
+      outDir: 'dist-extension/build',
+      emptyOutDir: false,
+      watch,
+      lib: {
+        entry: resolve(root, 'src/extension/background.ts'),
+        formats: ['iife'],
+        name: 'DeltaBackground',
+        fileName: () => 'background.js',
+      },
+    },
+  })
+  if (watch) packageOnceBothLand('background', background)
+
+  if (!watch) {
+    packageTargets()
+    rmSync(buildDir, { recursive: true, force: true })
+    console.log('Built dist-extension/chrome and dist-extension/firefox')
+  }
+}
+
+// Only build when run as a script. Importing this file (the tests do) must not
+// package the extension. `pathToFileURL` is what makes this hold on Windows,
+// where argv[1] is a backslashed drive path and import.meta.url is `file:///C:/…`.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main()
+}
